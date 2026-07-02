@@ -107,11 +107,14 @@ export const calculateSemiWeeklySummary = (semiTimesheets, clientRates, employee
                 client_id: ts.client_id,
                 occupation: ts.occupation,
                 rate,
+                transactionCode: ts.transaction_code || rate?.transaction_code || "",
                 totalNetHours: 0,
                 hasPublicHoliday: false,
                 hasSaturday: false,
                 daysWorked: 0,
             };
+        } else if (ts.transaction_code) {
+            groups[key].transactionCode = ts.transaction_code;
         }
 
         const g = groups[key];
@@ -276,7 +279,7 @@ export const calculateBatchExportData = (timesheets, clientRates, employees = []
         if (summary.normalTime > 0) {
             rows.push({
                 co_number: summary.co_number,
-                transactionCode: summary.rate?.transaction_code || "",
+                transactionCode: summary.transactionCode || "",
                 jobCode,
                 costCentre: summary.client_id,
                 qtyHrs: summary.normalTime.toFixed(2),
