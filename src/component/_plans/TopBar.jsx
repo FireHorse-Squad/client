@@ -49,7 +49,7 @@ export default function TopBar({ user }) {
                     <MenuIcon sx={{ color: 'white' }} />
                 </IconButton>
                 <div className="flex-shrink-0">
-                    <img src={Logo} alt="Firehorse" className='w-[70px] sm:w-[100px] md:w-[110px] lg:w-[130px] h-[32px] sm:h-[40px] md:h-[50px] lg:h-[60px] object-contain' />
+                    <img src={Logo} alt="Firehorse" className='w-[85px] ml-2 sm:w-[100px] md:w-[110px] lg:w-[130px] h-[32px] sm:h-[40px] md:h-[50px] lg:h-[60px] object-contain' />
                 </div>
             </div>
 
