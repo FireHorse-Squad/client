@@ -118,7 +118,7 @@ export default function TopBar({ user }) {
                             <button
                                 key={page.key}
                                 onClick={() => {
-                                    navigate(`/${page.key === 'dashboard' ? 'dashboard' : page.key}`);
+                                    navigate(`/${page.key === 'timesheets' ? 'timesheets' : page.key}`);
                                     setMobileOpen(false);
                                 }}
                                 className={`w-full text-left px-5 py-3.5 text-sm font-semibold transition-all duration-200 border-l-4 ${
