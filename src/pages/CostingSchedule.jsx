@@ -547,8 +547,8 @@ export default function CostingSchedule() {
                 <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
                     <div className="flex items-start gap-4 flex-1">
                         <div>
-                            <h2 className="text-lg font-bold text-slate-800">Costing Schedule</h2>
-                            <p className="text-xs text-slate-400 mt-0.5 max-w-sm">
+                            <h2 className="text-2xl font-bold text-slate-800">Cost Centre</h2>
+                            <p className="text-lg text-slate-400 mt-0.5 max-w-sm">
                                 Select a client name and cost center
                             </p>
                         </div>
