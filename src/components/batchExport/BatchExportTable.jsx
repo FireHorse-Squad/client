@@ -54,7 +54,7 @@ const BatchExportTable = ({ data, rowsPerPage = 20, clientId = null }) => {
         const rows = (safeData || []).map((row) => [
             String(row.co_number ?? ""),
             String(row.transactionCode ?? ""),
-            String(row.jobCode ?? ""),
+            `="${row.jobCode ?? ''}"`,
             String(row.costCentre ?? ""),
             String(row.qtyHrs ?? ""),
             row.rate != null ? String(row.rate) : "",
