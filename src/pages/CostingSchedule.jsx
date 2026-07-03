@@ -547,8 +547,8 @@ export default function CostingSchedule() {
                 <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
                     <div className="flex items-start gap-4 flex-1">
                         <div>
-                            <h2 className="text-2xl font-bold text-slate-800">Cost Centre</h2>
-                            <p className="text-lg text-slate-400 mt-0.5 max-w-sm">
+                            <h2 className="text-1xl font-bold text-slate-800">Cost Centre</h2>
+                            <p className="text-[16px] text-slate-400 mt-0.5 max-w-sm">
                                 Select a client name and cost center
                             </p>
                         </div>
@@ -673,7 +673,6 @@ export default function CostingSchedule() {
             <div className="flex flex-col gap-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
-                        <h2 className="text-xl font-bold text-slate-800">Costing Schedule</h2>
                         <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-lg border border-indigo-100">
                             {activeClientName}
                         </span>
