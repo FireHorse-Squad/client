@@ -51,16 +51,6 @@ const BatchExportTable = ({ data, rowsPerPage = 20, clientId = null }) => {
     const pageCount = Math.ceil(sortedData.length / rowsPerPage);
 
     const exportToCSV = () => {
-        const header = [
-            "co_number",
-            "transaction_code",
-            "job_code",
-            "cost_centre",
-            "qty_hrs",
-            "rate",
-            "amount",
-            "override",
-        ];
         const rows = (safeData || []).map((row) => [
             String(row.co_number ?? ""),
             String(row.transactionCode ?? ""),
@@ -72,7 +62,7 @@ const BatchExportTable = ({ data, rowsPerPage = 20, clientId = null }) => {
             row.override ? String(row.override).toUpperCase() : "N",
         ]);
 
-        const csvContent = [header, ...rows].map((cols) => cols.join("\t")).join("\n");
+        const csvContent = rows.map((cols) => cols.join(",")).join("\n");
 
         if (!csvContent) return;
 
