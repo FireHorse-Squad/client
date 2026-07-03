@@ -8,7 +8,7 @@ import Logo from "../../assets/img/Firehorselogo.png";
 import ProfileDropdown from '../../components/ProfileDropdown';
 
 const pages = [
-    { key: 'dashboard', label: 'Dashboard' },
+    // { key: 'dashboard', label: 'Dashboard' },
     { key: 'timesheets', label: 'Timesheets' },
     { key: 'batch-export', label: 'Batch Export' },
     { key: 'costing-schedule', label: 'Costing Schedule' },
@@ -24,7 +24,7 @@ export default function TopBar({ user }) {
     const currentPath = location.pathname;
 
     const getPageKeyFromPath = (path) => {
-        if (path === '/dashboard') return 'dashboard';
+        // if (path === '/dashboard') return 'dashboard';
         if (path === '/timesheets') return 'timesheets';
         if (path === '/batch-export') return 'batch-export';
         if (path === '/costing-schedule') return 'costing-schedule';
@@ -60,7 +60,7 @@ export default function TopBar({ user }) {
                         return (
                             <button
                                 key={page.key}
-                                onClick={() => navigate(`/${page.key === 'dashboard' ? 'dashboard' : page.key}`)}
+                                onClick={() => navigate(`/${page.key === 'timesheets' ? 'timesheets' : page.key}`)}
                                 className={`h-[35px] px-3 sm:px-5 py-1.5 rounded-lg text-[10px] sm:text-xs font-bold transition-all duration-200 whitespace-nowrap ${
                                     isActive
                                         ? 'bg-[#F5B52A] text-[#FFFFFF] shadow-sm'
