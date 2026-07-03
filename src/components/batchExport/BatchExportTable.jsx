@@ -51,17 +51,18 @@ const BatchExportTable = ({ data, rowsPerPage = 20, clientId = null }) => {
     const pageCount = Math.ceil(sortedData.length / rowsPerPage);
 
     const exportToCSV = () => {
-        const BOM = '\uFEFF';
-        const csvContent = BOM + safeData.map(row => [
-            `"=${row.co_number}"`,
-            `"=${row.transactionCode}"`,
-            `"=${row.jobCode}"`,
-            `"=${row.costCentre}"`,
-            `"=${row.qtyHrs}"`,
-            `"=${row.rate}"`,
-            `"=${row.amount}"`,
-            `"=${row.override}"`
-        ].join(",")).join("\n");
+        const header = ["co_number", "transaction_code", "job_code", "cost_centre", "qty_hrs", "rate", "amount", "override"];
+        const rows = safeData.map(row => [
+            row.co_number || '',
+            row.transactionCode || '',
+            row.jobCode || '',
+            row.costCentre || '',
+            row.qtyHrs || '',
+            row.rate != null ? `R ${row.rate}` : '',
+            row.amount != null ? `R ${row.amount}` : '',
+            row.override ? row.override.toUpperCase() : 'N'
+        ]);
+        const csvContent = header.concat(rows).map(cols => cols.join("\t")).join("\n");
 
         const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
         const link = document.createElement("a");
