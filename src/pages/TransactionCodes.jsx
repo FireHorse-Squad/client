@@ -31,7 +31,9 @@ export default function TransactionCodes() {
 
     useEffect(() => {
         fetchCodes();
-        const unsubscribe = onDataChange(() => fetchCodes());
+        const unsubscribe = onDataChange(() => {
+            if (document.visibilityState === 'visible') fetchCodes();
+        });
         return () => unsubscribe();
     }, [fetchCodes]);
 

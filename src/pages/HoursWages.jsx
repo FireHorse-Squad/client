@@ -42,7 +42,7 @@ const HoursWages = () => {
     useEffect(() => {
         fetchData();
         const unsubscribe = onDataChange(() => {
-            fetchData();
+            if (document.visibilityState === 'visible') fetchData();
         });
         return () => {
             unsubscribe();

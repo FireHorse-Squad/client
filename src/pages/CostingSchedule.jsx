@@ -342,7 +342,9 @@ export default function CostingSchedule() {
 
     useEffect(() => {
         fetchData();
-        const unsubscribe = onDataChange(() => fetchData());
+        const unsubscribe = onDataChange(() => {
+            if (document.visibilityState === 'visible') fetchData();
+        });
         return () => {
             unsubscribe();
         };

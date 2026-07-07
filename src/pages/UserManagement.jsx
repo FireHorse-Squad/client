@@ -28,7 +28,9 @@ const UserManagement = () => {
 
     useEffect(() => {
         fetchUsers();
-        const unsubscribe = onDataChange(() => fetchUsers());
+        const unsubscribe = onDataChange(() => {
+            if (document.visibilityState === 'visible') fetchUsers();
+        });
         return () => unsubscribe();
     }, [fetchUsers]);
 

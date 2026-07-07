@@ -45,7 +45,9 @@ export default function Employees() {
 
     useEffect(() => {
         fetchEmployees();
-        const unsubscribe = onDataChange(() => fetchEmployees());
+        const unsubscribe = onDataChange(() => {
+            if (document.visibilityState === 'visible') fetchEmployees();
+        });
         return () => unsubscribe();
     }, [fetchEmployees]);
 
