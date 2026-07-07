@@ -137,6 +137,7 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
                     client_id: timesheet.client_id,
                     client_name: timesheet.client_name,
                     occupation,
+                    rateInfo: matchedRate,
                     NT: { count: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
                     OT: { count: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
                     DT: { count: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
@@ -170,6 +171,7 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
                     client_id: summary.co_number,
                     client_name: summary.client_name || "",
                     occupation: summary.occupation,
+                    rateInfo: summary.rate,
                     NT: { count: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
                     OT: { count: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
                     DT: { count: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
@@ -209,7 +211,22 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
     const rows = Object.entries(data)
         .flatMap(([key, entry]) => {
             const types = ["NT", "OT", "DT"].filter(t => entry[t].count > 0);
-            return types.map(type => ({ key, entry, type }));
+            return types.map(type => {
+                const rateInfo = entry.rateInfo || {};
+                let rate = 0;
+                let invoiceRate = 0;
+                if (type === "NT") {
+                    rate = parseFloat(rateInfo.nt_hourly_rate) || 0;
+                    invoiceRate = parseFloat(rateInfo.nt_invoice_rate) || 0;
+                } else if (type === "OT") {
+                    rate = parseFloat(rateInfo.ot_1_5_rate) || 0;
+                    invoiceRate = parseFloat(rateInfo.ot_1_5_invoice_rate) || 0;
+                } else if (type === "DT") {
+                    rate = parseFloat(rateInfo.ot_2_0_rate) || 0;
+                    invoiceRate = parseFloat(rateInfo.ot_2_0_invoice_rate) || 0;
+                }
+                return { key, entry, type, rate, invoiceRate };
+            });
         })
         .sort((a, b) => {
             const nameA = a.entry.client_name || a.entry.client_id || "";
