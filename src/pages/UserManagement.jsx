@@ -7,7 +7,9 @@ import { Users, UserPlus, Edit, Trash2, X, AlertCircle } from 'lucide-react';
 const ROLES = {
     MANAGER: 'Account Manager',
     WAGES_CLERK: 'Wages Clerk',
-    ACCOUNTS_CLERK: 'Accounts Clerk'
+    ACCOUNTS_CLERK: 'Accounts Clerk',
+    WAGES_HR: 'Wages HR'
+
 };
 
 const UserManagement = () => {
@@ -117,6 +119,8 @@ const UserManagement = () => {
                 return 'bg-blue-100 text-blue-700';
             case ROLES.ACCOUNTS_CLERK:
                 return 'bg-green-100 text-green-700';
+             case ROLES.WAGES_HR:
+                return 'bg-yellow-100 text-yellow-700';
             default:
                 return 'bg-slate-100 text-slate-700';
         }
@@ -300,6 +304,7 @@ const UserManagement = () => {
                                     <option value={ROLES.MANAGER}>{ROLES.MANAGER}</option>
                                     <option value={ROLES.WAGES_CLERK}>{ROLES.WAGES_CLERK}</option>
                                     <option value={ROLES.ACCOUNTS_CLERK}>{ROLES.ACCOUNTS_CLERK}</option>
+                                    <option value={ROLES.WAGES_HR}>{ROLES.WAGES_HR}</option>
                                 </select>
                             </div>
                             <div className="flex gap-3 pt-4 border-t border-slate-100 mt-6">

@@ -17,7 +17,8 @@ import Toast from './component/_plans/Toast';
 const ROLES = {
     MANAGER: 'Account Manager',
     WAGES_CLERK: 'Wages Clerk',
-    ACCOUNTS_CLERK: 'Accounts Clerk'
+    ACCOUNTS_CLERK: 'Accounts Clerk',
+    WAGES_HR: 'Wages HR'
 };
 
 const PAGE_ROLES = {
@@ -26,9 +27,9 @@ const PAGE_ROLES = {
     '/batch-export': [ROLES.MANAGER, ROLES.WAGES_CLERK],
     '/costing-schedule': [ROLES.MANAGER, ROLES.WAGES_CLERK],
     '/clients': [ROLES.MANAGER, ROLES.WAGES_CLERK, ROLES.ACCOUNTS_CLERK],
-    '/employees': [ROLES.MANAGER, ROLES.WAGES_CLERK, ROLES.ACCOUNTS_CLERK],
+    '/employees': [ROLES.MANAGER, ROLES.WAGES_CLERK, ROLES.ACCOUNTS_CLERK, ROLES.WAGES_HR],
     '/transaction-codes': [ROLES.MANAGER, ROLES.WAGES_CLERK, ROLES.ACCOUNTS_CLERK],
-    '/settings': [ROLES.MANAGER, ROLES.WAGES_CLERK, ROLES.ACCOUNTS_CLERK],
+    '/settings': [ROLES.MANAGER, ROLES.WAGES_CLERK, ROLES.ACCOUNTS_CLERK, ROLES.WAGES_HR],
     '/user-management': [ROLES.MANAGER]
 };
 
