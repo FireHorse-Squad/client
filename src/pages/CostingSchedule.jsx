@@ -458,14 +458,15 @@ export default function CostingSchedule() {
         let totalChargeSum = 0;
 
         data.forEach(row => {
-            const rowHrs = getRowTotal(row);
-            monTot += row.entry.NT.mon + row.entry.OT.mon + row.entry.DT.mon;
-            tueTot += row.entry.NT.tue + row.entry.OT.tue + row.entry.DT.tue;
-            wedTot += row.entry.NT.wed + row.entry.OT.wed + row.entry.DT.wed;
-            thuTot += row.entry.NT.thu + row.entry.OT.thu + row.entry.DT.thu;
-            friTot += row.entry.NT.fri + row.entry.OT.fri + row.entry.DT.fri;
-            satTot += row.entry.NT.sat + row.entry.OT.sat + row.entry.DT.sat;
-            sunTot += row.entry.NT.sun + row.entry.OT.sun + row.entry.DT.sun;
+            const typeHours = row.type === "NT" ? row.entry.NT : row.type === "OT" ? row.entry.OT : row.entry.DT;
+            const rowHrs = typeHours.mon + typeHours.tue + typeHours.wed + typeHours.thu + typeHours.fri + typeHours.sat + typeHours.sun;
+            monTot += typeHours.mon;
+            tueTot += typeHours.tue;
+            wedTot += typeHours.wed;
+            thuTot += typeHours.thu;
+            friTot += typeHours.fri;
+            satTot += typeHours.sat;
+            sunTot += typeHours.sun;
             totalHrsSum += rowHrs;
             totalCostSum += rowHrs * row.rate;
             totalChargeSum += rowHrs * row.invoiceRate;
