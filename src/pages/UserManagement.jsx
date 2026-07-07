@@ -28,14 +28,6 @@ const UserManagement = () => {
     const [submitting, setSubmitting] = useState(false);
     const [deleteConfirm, setDeleteConfirm] = useState(null);
 
-    useEffect(() => {
-        fetchUsers();
-        const unsubscribe = onDataChange(() => {
-            if (document.visibilityState === 'visible') fetchUsers();
-        });
-        return () => unsubscribe();
-    }, [fetchUsers]);
-
     const fetchUsers = useCallback(async () => {
         try {
             setLoading(true);
@@ -47,6 +39,14 @@ const UserManagement = () => {
             setLoading(false);
         }
     }, []);
+
+    useEffect(() => {
+        fetchUsers();
+        const unsubscribe = onDataChange(() => {
+            if (document.visibilityState === 'visible') fetchUsers();
+        });
+        return () => unsubscribe();
+    }, [fetchUsers]);
 
     const resetForm = () => {
         setFormData({ full_name: '', email: '', password: '', role: ROLES.WAGES_CLERK });

@@ -29,14 +29,6 @@ export default function TransactionCodes() {
     const [searchTerm, setSearchTerm] = useState('');
     const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
-    useEffect(() => {
-        fetchCodes();
-        const unsubscribe = onDataChange(() => {
-            if (document.visibilityState === 'visible') fetchCodes();
-        });
-        return () => unsubscribe();
-    }, [fetchCodes]);
-
     const fetchCodes = useCallback(async () => {
         try {
             setLoading(true);
@@ -48,6 +40,14 @@ export default function TransactionCodes() {
             setLoading(false);
         }
     }, []);
+
+    useEffect(() => {
+        fetchCodes();
+        const unsubscribe = onDataChange(() => {
+            if (document.visibilityState === 'visible') fetchCodes();
+        });
+        return () => unsubscribe();
+    }, [fetchCodes]);
 
     const resetForm = () => {
         setFormData({ transaction_code: '', occupation_name: '' });
