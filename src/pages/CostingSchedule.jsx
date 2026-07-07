@@ -72,36 +72,17 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
         nonSemiTimesheets.forEach((timesheet) => {
             const adjustedDate = getAdjustedDate(new Date(timesheet.timesheet_date));
             const dayOfWeek = getDayOfWeek(adjustedDate);
+            const dayLower = dayOfWeek.toLowerCase();
 
-            const tsOccupationRaw = timesheet.occupation || "";
-            const tsOccupation = tsOccupationRaw.endsWith("2.0") ? tsOccupationRaw.slice(0, -3) : tsOccupationRaw;
-
-            let rate = clientRates.find(
-                (r) =>
-                    r.client_id?.toString().trim().toUpperCase() === timesheet.client_id?.toString().trim().toUpperCase() &&
-                    r.occupation?.toString().trim() === tsOccupation
-            );
-
-            if (!rate) {
-                const clientRatesList = clientRates.filter((r) => r.client_id?.toString().trim().toUpperCase() === timesheet.client_id?.toString().trim().toUpperCase());
-                rate = clientRatesList.find((r) => r.lookup?.toString().trim() === tsOccupation);
-            }
-
-            if (!rate) {
-                const txCode = parseInt(timesheet.transaction_code, 10);
-                if (txCode === 1921 || txCode === 1922) {
-                    rate = clientRates.find((r) => r.ot_2_0_rate && parseFloat(r.ot_2_0_rate) > 0);
-                }
-                if (!rate) {
-                    rate = clientRates.find((r) => r.client_id?.toString().trim().toUpperCase() === timesheet.client_id?.toString().trim().toUpperCase());
-                }
-            }
-
-            const isAdHoc = timesheet.shift_type === "Ad-Hoc";
-            const isBiometric = timesheet.shift_type !== "Task" && timesheet.total_hours != null;
             const txCode = parseInt(timesheet.transaction_code, 10);
+            const isDoubleShift = timesheet.isDoubleShift;
 
+            let normalTime = 0, overTimeHours = 0, doubleTimeHours = 0;
             let totalHours = 0;
+
+            const isBiometric = timesheet.shift_type !== "Task" && timesheet.total_hours != null;
+            const isAdHoc = timesheet.shift_type === "Ad-Hoc";
+
             if (isBiometric) {
                 totalHours = parseFloat(timesheet.total_hours) || 0;
             } else if (timesheet.shift_type !== "Task") {
@@ -110,195 +91,152 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
                 totalHours = parseFloat(timesheet.units) || 0;
             }
 
-            let normalTime = 0, overTimeHours = 0, doubleTimeHours = 0;
+            const tsOccupationRaw = timesheet.occupation || "";
+            const baseOccupation = tsOccupationRaw.endsWith("2.0") ? tsOccupationRaw.slice(0, -3) : tsOccupationRaw;
+            const occupation = baseOccupation || "General Worker";
 
-            if (isBiometric) {
+            const clientRatesList = clientRates.filter(
+                (r) => r.client_id?.toString().trim().toUpperCase() === timesheet.client_id?.toString().trim().toUpperCase()
+            );
+            let matchedRate = clientRatesList.find((r) => r.occupation?.toString().trim() === occupation) ||
+                clientRatesList.find((r) => r.lookup?.toString().trim() === occupation) ||
+                clientRatesList[0];
+
+            if ((txCode === 1921 || txCode === 1922) && matchedRate) {
+                doubleTimeHours = totalHours;
+            } else if (txCode === 1920 && matchedRate) {
                 const lunchDeduction =
                     timesheet.actual_lunch_hours !== null &&
                     timesheet.actual_lunch_hours !== undefined &&
                     timesheet.actual_lunch_hours !== ""
                         ? parseFloat(timesheet.actual_lunch_hours)
-                        : parseFloat(rate?.deduct_lunch_hour) || 0;
-                const netHours = totalHours - lunchDeduction;
-
-                if (txCode === 1921 || txCode === 1922) {
-                    doubleTimeHours = netHours;
-                } else if (txCode === 1920) {
-                    overTimeHours = netHours;
-                } else {
-                    if (isAdHoc) {
-                        normalTime = netHours;
-                    } else {
-                        normalTime = totalHours;
-                    }
-                }
+                        : parseFloat(matchedRate?.deduct_lunch_hour) || 0;
+                overTimeHours = totalHours - lunchDeduction;
             } else if (timesheet.shift_type !== "Task") {
-                if (timesheet.isDoubleShift) {
-                    const lunchDeduction =
-                        timesheet.actual_lunch_hours !== null &&
-                        timesheet.actual_lunch_hours !== undefined &&
-                        timesheet.actual_lunch_hours !== ""
-                            ? parseFloat(timesheet.actual_lunch_hours)
-                            : parseFloat(rate?.deduct_lunch_hour) || 0;
+                const lunchDeduction =
+                    timesheet.actual_lunch_hours !== null &&
+                    timesheet.actual_lunch_hours !== undefined &&
+                    timesheet.actual_lunch_hours !== ""
+                        ? parseFloat(timesheet.actual_lunch_hours)
+                        : parseFloat(matchedRate?.deduct_lunch_hour) || 0;
+                if (isDoubleShift) {
                     normalTime = totalHours - lunchDeduction;
                 } else {
-                    if (txCode === 1921 || txCode === 1922) {
-                        const lunchDeduction =
-                            timesheet.actual_lunch_hours !== null &&
-                            timesheet.actual_lunch_hours !== undefined &&
-                            timesheet.actual_lunch_hours !== ""
-                                ? parseFloat(timesheet.actual_lunch_hours)
-                                : parseFloat(rate?.deduct_lunch_hour) || 0;
-                        doubleTimeHours = totalHours - lunchDeduction;
-                    } else if (txCode === 1920) {
-                        const lunchDeduction =
-                            timesheet.actual_lunch_hours !== null &&
-                            timesheet.actual_lunch_hours !== undefined &&
-                            timesheet.actual_lunch_hours !== ""
-                                ? parseFloat(timesheet.actual_lunch_hours)
-                                : parseFloat(rate?.deduct_lunch_hour) || 0;
-                        overTimeHours = totalHours - lunchDeduction;
-                    } else {
-                        const lunchDeduction =
-                            timesheet.actual_lunch_hours !== null &&
-                            timesheet.actual_lunch_hours !== undefined &&
-                            timesheet.actual_lunch_hours !== ""
-                                ? parseFloat(timesheet.actual_lunch_hours)
-                                : parseFloat(rate?.deduct_lunch_hour) || 0;
-                        const netHours = totalHours - lunchDeduction;
-                        normalTime = Math.min(netHours, parseFloat(rate?.hrs_pd) || 8);
-                        overTimeHours = Math.max(0, netHours - (parseFloat(rate?.hrs_pd) || 8));
-                    }
+                    const netHours = totalHours - lunchDeduction;
+                    normalTime = Math.min(netHours, parseFloat(matchedRate?.hrs_pd) || 8);
+                    overTimeHours = Math.max(0, netHours - (parseFloat(matchedRate?.hrs_pd) || 8));
                 }
+            } else {
+                if (isAdHoc) normalTime = totalHours;
             }
 
-            const occupation = timesheet.occupation || "General Worker";
-            const employee = employees.find((emp) => emp.co_number?.toString().trim() === timesheet.co_number?.toString().trim());
-            const employeeName = employee ? employee.full_name : "Unknown";
+            const groupKey = `${timesheet.client_id}|${occupation}`;
+
+            if (!data[groupKey]) {
+                data[groupKey] = {
+                    client_id: timesheet.client_id,
+                    client_name: timesheet.client_name,
+                    occupation,
+                    NT: { count: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
+                    OT: { count: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
+                    DT: { count: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
+                    days: new Set(),
+                };
+            }
+            const entry = data[groupKey];
+            entry.days.add(dayLower);
 
             if (normalTime > 0) {
-                const ntRate = isAdHoc ? parseFloat(rate?.sub_total_a) || 0 : parseFloat(rate?.nt_hourly_rate) || 0;
-                const ntInvoiceRate = parseFloat(rate?.nt_invoice_rate) || 0;
-                data.push({
-                    id: `${timesheet.id}-NT`,
-                    co_number: timesheet.co_number,
-                    date: adjustedDate,
-                    occupation: isAdHoc ? `${occupation} Ad-Hoc` : occupation,
-                    timeType: "NT",
-                    rate: ntRate,
-                    invoiceRate: ntInvoiceRate,
-                    employeeName,
-                    mon: dayOfWeek.toLowerCase() === "mon" ? normalTime : 0,
-                    tue: dayOfWeek.toLowerCase() === "tue" ? normalTime : 0,
-                    wed: dayOfWeek.toLowerCase() === "wed" ? normalTime : 0,
-                    thu: dayOfWeek.toLowerCase() === "thu" ? normalTime : 0,
-                    fri: dayOfWeek.toLowerCase() === "fri" ? normalTime : 0,
-                    sat: dayOfWeek.toLowerCase() === "sat" ? normalTime : 0,
-                    sun: dayOfWeek.toLowerCase() === "sun" ? normalTime : 0,
-                });
+                entry.NT[dayLower] += normalTime;
+                entry.NT.count += 1;
             }
-
             if (overTimeHours > 0) {
-                const otRate = parseFloat(rate?.ot_1_5_rate) || 0;
-                const otInvoiceRate = parseFloat(rate?.ot_1_5_invoice_rate) || 0;
-                data.push({
-                    id: `${timesheet.id}-OT`,
-                    co_number: timesheet.co_number,
-                    date: adjustedDate,
-                    occupation: `${occupation} OT`,
-                    timeType: "OT",
-                    rate: otRate,
-                    invoiceRate: otInvoiceRate,
-                    employeeName,
-                    mon: dayOfWeek.toLowerCase() === "mon" ? overTimeHours : 0,
-                    tue: dayOfWeek.toLowerCase() === "tue" ? overTimeHours : 0,
-                    wed: dayOfWeek.toLowerCase() === "wed" ? overTimeHours : 0,
-                    thu: dayOfWeek.toLowerCase() === "thu" ? overTimeHours : 0,
-                    fri: dayOfWeek.toLowerCase() === "fri" ? overTimeHours : 0,
-                    sat: dayOfWeek.toLowerCase() === "sat" ? overTimeHours : 0,
-                    sun: dayOfWeek.toLowerCase() === "sun" ? overTimeHours : 0,
-                });
+                entry.OT[dayLower] += overTimeHours;
+                entry.OT.count += 1;
             }
-
             if (doubleTimeHours > 0) {
-                const dtRate = parseFloat(rate?.ot_2_0_rate) || 0;
-                const dtInvoiceRate = parseFloat(rate?.ot_2_0_invoice_rate) || 0;
-                data.push({
-                    id: `${timesheet.id}-DT`,
-                    co_number: timesheet.co_number,
-                    date: adjustedDate,
-                    occupation: `${occupation} DT`,
-                    timeType: "DT",
-                    rate: dtRate,
-                    invoiceRate: dtInvoiceRate,
-                    employeeName,
-                    mon: dayOfWeek.toLowerCase() === "mon" ? doubleTimeHours : 0,
-                    tue: dayOfWeek.toLowerCase() === "tue" ? doubleTimeHours : 0,
-                    wed: dayOfWeek.toLowerCase() === "wed" ? doubleTimeHours : 0,
-                    thu: dayOfWeek.toLowerCase() === "thu" ? doubleTimeHours : 0,
-                    fri: dayOfWeek.toLowerCase() === "fri" ? doubleTimeHours : 0,
-                    sat: dayOfWeek.toLowerCase() === "sat" ? doubleTimeHours : 0,
-                    sun: dayOfWeek.toLowerCase() === "sun" ? doubleTimeHours : 0,
-                });
+                entry.DT[dayLower] += doubleTimeHours;
+                entry.DT.count += 1;
             }
         });
     };
 
-    const processSemi = () => {
+    const processSemiAgg = () => {
         const summaries = calculateSemiWeeklySummary(semiTimesheets, clientRates, employees, publicHolidays);
         summaries.forEach((summary) => {
-            if (summary.normalTime > 0) {
-                data.push({
-                    id: `${summary.co_number}-${summary.weekStart}-NT`,
-                    co_number: summary.co_number,
-                    date: summary.weekStart,
+            const groupKey = `${summary.co_number}|${summary.occupation}`;
+            if (!data[groupKey]) {
+                data[groupKey] = {
+                    client_id: summary.co_number,
+                    client_name: summary.client_name || "",
                     occupation: summary.occupation,
-                    timeType: "NT",
-                    rate: summary.rate,
-                    invoiceRate: parseFloat(summary.rate?.nt_invoice_rate || 0),
-                    employeeName: summary.employeeName,
-                    mon: 0,
-                    tue: 0,
-                    wed: 0,
-                    thu: 0,
-                    fri: 0,
-                    sat: 0,
-                    sun: 0,
-                    _weeklyTotal: summary.normalTime,
-                });
+                    NT: { count: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
+                    OT: { count: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
+                    DT: { count: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
+                    days: new Set(),
+                };
             }
-
-            if (summary.overTime > 0) {
-                data.push({
-                    id: `${summary.co_number}-${summary.weekStart}-OT`,
-                    co_number: summary.co_number,
-                    date: summary.weekStart,
-                    occupation: `${summary.occupation} OT`,
-                    timeType: "OT",
-                    rate: summary.otRate,
-                    invoiceRate: parseFloat(summary.rate?.ot_1_5_invoice_rate || 0),
-                    employeeName: summary.employeeName,
-                    mon: 0,
-                    tue: 0,
-                    wed: 0,
-                    thu: 0,
-                    fri: 0,
-                    sat: 0,
-                    sun: 0,
-                    _weeklyTotal: summary.overTime,
+            const entry = data[groupKey];
+            if (summary.normalTime > 0) {
+                const daysInWeek = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+                const perDay = summary.normalTime / daysInWeek.length;
+                daysInWeek.forEach(d => {
+                    entry.NT[d] += perDay;
+                    entry.days.add(d);
                 });
+                entry.NT.count += 1;
+            }
+            if (summary.overTime > 0) {
+                const daysInWeek = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+                const perDay = summary.overTime / daysInWeek.length;
+                daysInWeek.forEach(d => {
+                    entry.OT[d] += perDay;
+                    entry.days.add(d);
+                });
+                entry.OT.count += 1;
             }
         });
     };
 
     if (semiTimesheets.length > 0) {
-        processSemi();
+        processSemiAgg();
     }
     if (nonSemiTimesheets.length > 0) {
         processNonSemi();
     }
 
-    return { data, dates };
+    const typeOrder = { NT: 0, OT: 1, DT: 2 };
+    const rows = Object.entries(data)
+        .flatMap(([key, entry]) => {
+            const types = ["NT", "OT", "DT"].filter(t => entry[t].count > 0);
+            return types.map(type => ({ key, entry, type }));
+        })
+        .sort((a, b) => {
+            const nameA = a.entry.client_name || a.entry.client_id || "";
+            const nameB = b.entry.client_name || b.entry.client_id || "";
+            const cmp = nameA.localeCompare(nameB);
+            if (cmp !== 0) return cmp;
+            return (typeOrder[a.type] || 0) - (typeOrder[b.type] || 0);
+        });
+
+    return { data: rows, dates };
+};
+
+const formatDayValue = (val) => val > 0.005 ? val.toFixed(2) : "0.00";
+
+const getOccupationDisplay = (row) => {
+    return row.entry.occupation;
+};
+
+
+const getRowTotal = (row) => {
+    const days = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+    return days.reduce((sum, d) => sum + getDayHours(row, d), 0);
+};
+
+const getDayHours = (row, dayKey) => {
+    const typeHour = row.type === "NT" ? row.entry.NT : row.type === "OT" ? row.entry.OT : row.entry.DT;
+    return typeHour[dayKey] || 0;
 };
 
 // Premium SVG Icons
@@ -485,14 +423,14 @@ export default function CostingSchedule() {
         let totalChargeSum = 0;
 
         data.forEach(row => {
-            const rowHrs = row.mon + row.tue + row.wed + row.thu + row.fri + row.sat + row.sun;
-            monTot += row.mon;
-            tueTot += row.tue;
-            wedTot += row.wed;
-            thuTot += row.thu;
-            friTot += row.fri;
-            satTot += row.sat;
-            sunTot += row.sun;
+            const rowHrs = getRowTotal(row);
+            monTot += row.entry.NT.mon + row.entry.OT.mon + row.entry.DT.mon;
+            tueTot += row.entry.NT.tue + row.entry.OT.tue + row.entry.DT.tue;
+            wedTot += row.entry.NT.wed + row.entry.OT.wed + row.entry.DT.wed;
+            thuTot += row.entry.NT.thu + row.entry.OT.thu + row.entry.DT.thu;
+            friTot += row.entry.NT.fri + row.entry.OT.fri + row.entry.DT.fri;
+            satTot += row.entry.NT.sat + row.entry.OT.sat + row.entry.DT.sat;
+            sunTot += row.entry.NT.sun + row.entry.OT.sun + row.entry.DT.sun;
             totalHrsSum += rowHrs;
             totalCostSum += rowHrs * row.rate;
             totalChargeSum += rowHrs * row.invoiceRate;
@@ -515,8 +453,6 @@ export default function CostingSchedule() {
         if (selectedClientName) return selectedClientName;
         return "All Clients";
     }, [selectedClientId, selectedClientName, allClientRates]);
-
-    const getDayTotal = (dayKey) => data.reduce((sum, row) => sum + row[dayKey], 0);
 
     if (loading) {
         return (
@@ -542,7 +478,6 @@ export default function CostingSchedule() {
 
     return (
         <div className="w-full flex flex-col gap-8">
-            {/* DRIBBBLE-STYLE FILTERS & CONTROL PANEL */}
             <div className="bg-white rounded-3xl p-6 shadow-xl shadow-slate-100/60 border border-slate-100">
                 <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
                     <div className="flex items-start gap-4 flex-1">
@@ -555,7 +490,6 @@ export default function CostingSchedule() {
                     </div>
 
                     <div className="flex flex-wrap items-center gap-4 w-full lg:w-auto">
-                        {/* Select Client Name Dropdown */}
                         <div className="flex flex-col gap-1.5 flex-1 min-w-[200px]">
                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Client Name</label>
                             <div className="relative">
@@ -575,7 +509,6 @@ export default function CostingSchedule() {
                             </div>
                         </div>
 
-                        {/* Select Client ID Dropdown (Cost Code Bracket) */}
                         <div className="flex flex-col gap-1.5 flex-1 min-w-[180px]">
                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Cost Centre</label>
                             <div className="relative">
@@ -595,7 +528,6 @@ export default function CostingSchedule() {
                             </div>
                         </div>
 
-                        {/* Action Buttons */}
                         <div className="flex items-end gap-2 pt-5">
                             <button
                                 onClick={handleRefresh}
@@ -610,9 +542,7 @@ export default function CostingSchedule() {
                 </div>
             </div>
 
-            {/* DRIBBBLE-STYLE KPI DASH CARDS */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* CARD 1: Total Hours */}
                 <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-md shadow-slate-100/40 hover:translate-y-[-2px] transition-transform">
                     <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Accumulated Hours</p>
                     <div className="flex items-baseline gap-2 mt-2">
@@ -625,7 +555,6 @@ export default function CostingSchedule() {
                     </p>
                 </div>
 
-                {/* CARD 2: Total Cost */}
                 <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-md shadow-slate-100/40 hover:translate-y-[-2px] transition-transform">
                     <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Costing Projection</p>
                     <div className="flex items-baseline gap-1 mt-2">
@@ -640,7 +569,6 @@ export default function CostingSchedule() {
                     </p>
                 </div>
 
-                {/* CARD 3: Projected Invoice Charge */}
                 <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-md shadow-slate-100/40 hover:translate-y-[-2px] transition-transform">
                     <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Projected Billing Invoice</p>
                     <div className="flex items-baseline gap-1 mt-2">
@@ -655,7 +583,6 @@ export default function CostingSchedule() {
                     </p>
                 </div>
 
-                {/* CARD 4: Profit Margin % */}
                 <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-md shadow-slate-100/40 hover:translate-y-[-2px] transition-transform">
                     <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Operating Margin</p>
                     <div className="flex items-baseline gap-1 mt-2">
@@ -669,7 +596,6 @@ export default function CostingSchedule() {
                 </div>
             </div>
 
-            {/* SECTION: SCHEDULE LISTING */}
             <div className="flex flex-col gap-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
@@ -708,13 +634,12 @@ export default function CostingSchedule() {
                             <table className="w-full border-collapse border-spacing-0 text-left">
                                 <thead>
                                     <tr className="bg-[#2D328F]">
-                                        <th colSpan="3" className="px-4 py-2.5 text-[10px] font-black tracking-widest text-slate-200 border-r border-slate-700/50 uppercase">Resource Particulars</th>
+                                        <th colSpan="2" className="px-4 py-2.5 text-[10px] font-black tracking-widest text-slate-200 border-r border-slate-700/50 uppercase">Resource Particulars</th>
                                         <th colSpan="7" className="px-4 py-2.5 text-center text-[10px] font-black tracking-widest text-slate-200 border-r border-slate-700/50 uppercase bg-indigo-950/40">Weekly Hours Breakdown</th>
                                         <th colSpan="5" className="px-4 py-2.5 text-right text-[10px] font-black tracking-widest text-slate-200 uppercase">Costing & Billing Rates (R)</th>
                                     </tr>
                                     <tr className="bg-[#2D328F]/95 text-[11px] font-bold text-white uppercase tracking-wider sticky top-0 z-10 border-b border-slate-700">
                                         <th className="px-5 py-3.5 min-w-[240px] sticky left-0 bg-[#2D328F] z-20 shadow-[2px_0_5px_rgba(0,0,0,0.15)]">Role / Description</th>
-                                        <th className="px-4 py-3.5 min-w-[120px]">CO Number</th>
                                         <th className="px-4 py-3.5 min-w-[110px] border-r border-indigo-900/40">Date</th>
                                         <th className="px-3 py-3.5 text-center min-w-[65px] bg-indigo-950/25">Mon</th>
                                         <th className="px-3 py-3.5 text-center min-w-[65px] bg-indigo-950/25">Tue</th>
@@ -732,29 +657,35 @@ export default function CostingSchedule() {
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 text-xs text-slate-600 font-medium">
                                     {data.map((row, index) => {
-                                        const totalRowHrs = row._weeklyTotal ? row._weeklyTotal : (row.mon + row.tue + row.wed + row.thu + row.fri + row.sat + row.sun);
-                                        const rowCost = totalRowHrs * row.rate;
+                                        const totalRowHrs = getRowTotal(row);
+                                        const rowRate = row.rate;
+                                        const rowCost = totalRowHrs * rowRate;
                                         const rowCharge = totalRowHrs * row.invoiceRate;
                                         const isSmoke = index % 2 === 0;
                                         const rowBg = isSmoke ? "bg-[#F9FAFC] hover:bg-slate-100/80" : "bg-white hover:bg-slate-50";
-                                        const dayVal = (d) => row[d] ? row[d].toFixed(2) : "0.00";
+                                        const dayVal = (d) => formatDayValue(getDayHours(row, d));
+                                        const selfCount = row.type === "NT" ? row.entry.NT.count : row.type === "OT" ? row.entry.OT.count : row.type === "DT" ? row.entry.DT.count : 0;
 
                                         return (
-                                            <tr key={row.id} className={`${rowBg} transition-all duration-150`}>
-                                                <td className={`px-5 py-3.5 text-slate-800 font-bold sticky left-0 z-10 shadow-[2px_0_5px_rgba(0,0,0,0.02)] ${isSmoke ? "bg-[#F9FAFC]" : "bg-white"}`}>
-                                                    {row.employeeName ? <span className="text-slate-900">{row.employeeName}</span> : row.occupation} <span className="text-[10px] font-normal text-slate-400 ml-1">[{row.timeType}]</span>
+                                            <tr key={row.key + "-" + row.type} className={`${rowBg} transition-all duration-150`}>
+                                                <td className={`px-5 py-3.5 text-slate-800 font-bold sticky left-0 z-10 shadow-[2px_0_5px_rgba(0,0,0,0.02)] ${isSmoke ? "bg-[#F9FAFC]" : "bg-white"} flex flex-col gap-0.5`}>
+                                                    <span>{getOccupationDisplay(row)}</span>
+                                                    <span className="text-[10px] font-normal text-slate-400">[{row.type}]</span>
                                                 </td>
-                                                <td className="px-4 py-3.5 font-mono text-slate-500">{row.co_number}</td>
-                                                <td className="px-4 py-3.5 border-r border-slate-100">{row.date}</td>
-                                                <td className={`px-3 py-3.5 text-center font-mono ${row.mon > 0 ? "text-slate-900 font-bold" : "text-slate-300"}`}>{dayVal("mon")}</td>
-                                                <td className={`px-3 py-3.5 text-center font-mono ${row.tue > 0 ? "text-slate-900 font-bold" : "text-slate-300"}`}>{dayVal("tue")}</td>
-                                                <td className={`px-3 py-3.5 text-center font-mono ${row.wed > 0 ? "text-slate-900 font-bold" : "text-slate-300"}`}>{dayVal("wed")}</td>
-                                                <td className={`px-3 py-3.5 text-center font-mono ${row.thu > 0 ? "text-slate-900 font-bold" : "text-slate-300"}`}>{dayVal("thu")}</td>
-                                                <td className={`px-3 py-3.5 text-center font-mono ${row.fri > 0 ? "text-slate-900 font-bold" : "text-slate-300"}`}>{dayVal("fri")}</td>
-                                                <td className={`px-3 py-3.5 text-center font-mono bg-amber-50/40 text-amber-800 ${row.sat > 0 ? "font-bold" : "text-slate-300"}`}>{dayVal("sat")}</td>
-                                                <td className={`px-3 py-3.5 text-center font-mono bg-amber-50/40 text-amber-800 border-r border-slate-100 ${row.sun > 0 ? "font-bold" : "text-slate-300"}`}>{dayVal("sun")}</td>
+                                                <td className="px-4 py-3.5 border-r border-slate-100 text-slate-700 font-semibold">
+                                                    <span className="inline-flex items-center rounded-full bg-indigo-50 border border-indigo-200 px-2 py-0.5 text-[10px] font-bold text-indigo-700">
+                                                        {selfCount}
+                                                    </span>
+                                                </td>
+                                                <td className={`px-3 py-3.5 text-center font-mono ${row.entry.NT.mon + row.entry.OT.mon + row.entry.DT.mon > 0 ? "text-slate-900 font-bold" : "text-slate-300"}`}>{dayVal("mon")}</td>
+                                                <td className={`px-3 py-3.5 text-center font-mono ${row.entry.NT.tue + row.entry.OT.tue + row.entry.DT.tue > 0 ? "text-slate-900 font-bold" : "text-slate-300"}`}>{dayVal("tue")}</td>
+                                                <td className={`px-3 py-3.5 text-center font-mono ${row.entry.NT.wed + row.entry.OT.wed + row.entry.DT.wed > 0 ? "text-slate-900 font-bold" : "text-slate-300"}`}>{dayVal("wed")}</td>
+                                                <td className={`px-3 py-3.5 text-center font-mono ${row.entry.NT.thu + row.entry.OT.thu + row.entry.DT.thu > 0 ? "text-slate-900 font-bold" : "text-slate-300"}`}>{dayVal("thu")}</td>
+                                                <td className={`px-3 py-3.5 text-center font-mono ${row.entry.NT.fri + row.entry.OT.fri + row.entry.DT.fri > 0 ? "text-slate-900 font-bold" : "text-slate-300"}`}>{dayVal("fri")}</td>
+                                                <td className={`px-3 py-3.5 text-center font-mono bg-amber-50/40 text-amber-800 ${row.entry.NT.sat + row.entry.OT.sat + row.entry.DT.sat > 0 ? "font-bold" : "text-slate-300"}`}>{dayVal("sat")}</td>
+                                                <td className={`px-3 py-3.5 text-center font-mono bg-amber-50/40 text-amber-800 border-r border-slate-100 ${row.entry.NT.sun + row.entry.OT.sun + row.entry.DT.sun > 0 ? "font-bold" : "text-slate-300"}`}>{dayVal("sun")}</td>
                                                 <td className="px-4 py-3.5 text-center font-black text-indigo-600 bg-indigo-50/40">{totalRowHrs.toFixed(2)}</td>
-                                                <td className="px-4 py-3.5 text-right font-mono text-slate-500">R {row.rate.toFixed(2)}</td>
+                                                <td className="px-4 py-3.5 text-right font-mono text-slate-500">R {rowRate.toFixed(2)}</td>
                                                 <td className="px-4 py-3.5 text-right font-mono font-bold text-slate-800">R {rowCost.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                                 <td className="px-4 py-3.5 text-right font-mono text-slate-500">R {row.invoiceRate.toFixed(2)}</td>
                                                 <td className="px-4 py-3.5 text-right font-mono font-black text-slate-900 bg-green-50/25">R {rowCharge.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
@@ -765,15 +696,14 @@ export default function CostingSchedule() {
                                         <td className="px-5 py-4 sticky left-0 bg-slate-100 z-10 shadow-[2px_0_5px_rgba(0,0,0,0.05)] font-black uppercase tracking-wider text-slate-800">
                                             Grand Total
                                         </td>
-                                        <td className="px-4 py-4"></td>
                                         <td className="px-4 py-4 border-r border-slate-200"></td>
-                                        <td className="px-3 py-4 text-center font-mono">{getDayTotal("mon").toFixed(2)}</td>
-                                        <td className="px-3 py-4 text-center font-mono">{getDayTotal("tue").toFixed(2)}</td>
-                                        <td className="px-3 py-4 text-center font-mono">{getDayTotal("wed").toFixed(2)}</td>
-                                        <td className="px-3 py-4 text-center font-mono">{getDayTotal("thu").toFixed(2)}</td>
-                                        <td className="px-3 py-4 text-center font-mono">{getDayTotal("fri").toFixed(2)}</td>
-                                        <td className="px-3 py-4 text-center font-mono bg-amber-100/50">{getDayTotal("sat").toFixed(2)}</td>
-                                        <td className="px-3 py-4 text-center font-mono bg-amber-100/50 border-r border-slate-200">{getDayTotal("sun").toFixed(2)}</td>
+                                        <td className="px-3 py-4 text-center font-mono">{totals.mon.toFixed(2)}</td>
+                                        <td className="px-3 py-4 text-center font-mono">{totals.tue.toFixed(2)}</td>
+                                        <td className="px-3 py-4 text-center font-mono">{totals.wed.toFixed(2)}</td>
+                                        <td className="px-3 py-4 text-center font-mono">{totals.thu.toFixed(2)}</td>
+                                        <td className="px-3 py-4 text-center font-mono">{totals.fri.toFixed(2)}</td>
+                                        <td className="px-3 py-4 text-center font-mono bg-amber-100/50">{totals.sat.toFixed(2)}</td>
+                                        <td className="px-3 py-4 text-center font-mono bg-amber-100/50 border-r border-slate-200">{totals.sun.toFixed(2)}</td>
                                         <td className="px-4 py-4 text-center font-mono bg-indigo-100 text-indigo-900 text-sm font-black">{totals.totalHrs.toFixed(2)}</td>
                                         <td className="px-4 py-4 text-right text-[10px] text-slate-400">Average Rate</td>
                                         <td className="px-4 py-4 text-right font-mono text-sm font-black text-slate-900">
