@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import api from '../utils/api';
+import { onDataChange } from '../utils/dataSync';
 import { useAuth } from '../context/AuthContext';
 import { Users, UserPlus, Edit, Trash2, X, AlertCircle } from 'lucide-react';
 
@@ -27,9 +28,11 @@ const UserManagement = () => {
 
     useEffect(() => {
         fetchUsers();
-    }, []);
+        const unsubscribe = onDataChange(() => fetchUsers());
+        return () => unsubscribe();
+    }, [fetchUsers]);
 
-    const fetchUsers = async () => {
+    const fetchUsers = useCallback(async () => {
         try {
             setLoading(true);
             const response = await api.get('/auth/users');
@@ -39,7 +42,7 @@ const UserManagement = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
     const resetForm = () => {
         setFormData({ full_name: '', email: '', password: '', role: ROLES.WAGES_CLERK });

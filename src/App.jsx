@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/Login';
+import { startGlobalPoll, stopGlobalPoll } from './utils/dataSync';
 // import Dashboard from './pages/Dashboard';
 import Timesheets from './pages/Timesheets';
 import BatchExport from './pages/BatchExport';
@@ -35,6 +36,11 @@ const PAGE_ROLES = {
 
 function AppLayout() {
     const { user, loading } = useAuth();
+
+    useEffect(() => {
+        startGlobalPoll(1000);
+        return () => stopGlobalPoll();
+    }, []);
 
     if (loading) {
         return (

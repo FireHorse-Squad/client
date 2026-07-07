@@ -342,10 +342,8 @@ export default function CostingSchedule() {
 
     useEffect(() => {
         fetchData();
-        const interval = setInterval(fetchData, 86400000);
         const unsubscribe = onDataChange(() => fetchData());
         return () => {
-            clearInterval(interval);
             unsubscribe();
         };
     }, [fetchData]);

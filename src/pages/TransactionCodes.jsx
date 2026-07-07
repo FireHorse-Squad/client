@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import api from '../utils/api';
+import { onDataChange } from '../utils/dataSync';
 import { Plus, Edit, Trash2, X, AlertCircle, CheckSquare, Square } from 'lucide-react';
 import BulkDeleteModal from '../components/common/BulkDeleteModal';
 
@@ -28,9 +29,13 @@ export default function TransactionCodes() {
     const [searchTerm, setSearchTerm] = useState('');
     const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
-    useEffect(() => { fetchCodes(); }, []);
+    useEffect(() => {
+        fetchCodes();
+        const unsubscribe = onDataChange(() => fetchCodes());
+        return () => unsubscribe();
+    }, [fetchCodes]);
 
-    const fetchCodes = async () => {
+    const fetchCodes = useCallback(async () => {
         try {
             setLoading(true);
             const response = await api.get('/transactioncodes');
@@ -40,7 +45,7 @@ export default function TransactionCodes() {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
     const resetForm = () => {
         setFormData({ transaction_code: '', occupation_name: '' });
