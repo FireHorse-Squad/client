@@ -138,6 +138,7 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
                     client_name: timesheet.client_name,
                     occupation,
                     rateInfo: matchedRate,
+                    hasAdHocNT: false,
                     NT: { count: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
                     OT: { count: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
                     DT: { count: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
@@ -150,6 +151,7 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
             if (normalTime > 0) {
                 entry.NT[dayLower] += normalTime;
                 entry.NT.count += 1;
+                if (isAdHoc) entry.hasAdHocNT = true;
             }
             if (overTimeHours > 0) {
                 entry.OT[dayLower] += overTimeHours;
@@ -166,12 +168,28 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
         const summaries = calculateSemiWeeklySummary(semiTimesheets, clientRates, employees, publicHolidays);
         summaries.forEach((summary) => {
             const groupKey = `${summary.co_number}|${summary.occupation}`;
+            const fullRate =
+                clientRates.find(
+                    (r) =>
+                        r.client_id?.toString().trim().toUpperCase() === summary.client_id?.toString().trim().toUpperCase() &&
+                        r.occupation?.toString().trim() === summary.occupation
+                ) ||
+                clientRates.find(
+                    (r) =>
+                        r.client_id?.toString().trim().toUpperCase() === summary.client_id?.toString().trim().toUpperCase() &&
+                        r.lookup?.toString().trim() === summary.occupation
+                ) ||
+                clientRates.find(
+                    (r) =>
+                        r.client_id?.toString().trim().toUpperCase() === summary.client_id?.toString().trim().toUpperCase()
+                );
             if (!data[groupKey]) {
                 data[groupKey] = {
                     client_id: summary.co_number,
                     client_name: summary.client_name || "",
                     occupation: summary.occupation,
-                    rateInfo: summary.rate,
+                    rateInfo: fullRate,
+                    hasAdHocNT: false,
                     NT: { count: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
                     OT: { count: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
                     DT: { count: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
@@ -216,7 +234,7 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
                 let rate = 0;
                 let invoiceRate = 0;
                 if (type === "NT") {
-                    rate = parseFloat(rateInfo.nt_hourly_rate) || 0;
+                    rate = entry.hasAdHocNT ? parseFloat(rateInfo.sub_total_a) || 0 : parseFloat(rateInfo.nt_hourly_rate) || 0;
                     invoiceRate = parseFloat(rateInfo.nt_invoice_rate) || 0;
                 } else if (type === "OT") {
                     rate = parseFloat(rateInfo.ot_1_5_rate) || 0;
@@ -657,7 +675,7 @@ export default function CostingSchedule() {
                                     </tr>
                                     <tr className="bg-[#2D328F]/95 text-[11px] font-bold text-white uppercase tracking-wider sticky top-0 z-10 border-b border-slate-700">
                                         <th className="px-5 py-3.5 min-w-[240px] sticky left-0 bg-[#2D328F] z-20 shadow-[2px_0_5px_rgba(0,0,0,0.15)]">Role / Description</th>
-                                        <th className="px-4 py-3.5 min-w-[110px] border-r border-indigo-900/40">Date</th>
+                                        <th className="px-4 py-3.5 min-w-[110px] border-r border-indigo-900/40">Total Emp</th>
                                         <th className="px-3 py-3.5 text-center min-w-[65px] bg-indigo-950/25">Mon</th>
                                         <th className="px-3 py-3.5 text-center min-w-[65px] bg-indigo-950/25">Tue</th>
                                         <th className="px-3 py-3.5 text-center min-w-[65px] bg-indigo-950/25">Wed</th>
@@ -672,7 +690,7 @@ export default function CostingSchedule() {
                                         <th className="px-4 py-3.5 text-right min-w-[110px] font-bold text-green-300">Charge</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-100 text-xs text-slate-600 font-medium">
+                                <tbody className="divide-y divide-slate-100 text-xs text-slncreateate-600 font-medium">
                                     {data.map((row, index) => {
                                         const totalRowHrs = getRowTotal(row);
                                         const rowRate = row.rate;
@@ -690,7 +708,7 @@ export default function CostingSchedule() {
                                                     <span className="text-[10px] font-normal text-slate-400">[{row.type}]</span>
                                                 </td>
                                                 <td className="px-4 py-3.5 border-r border-slate-100 text-slate-700 font-semibold">
-                                                    <span className="inline-flex items-center rounded-full bg-indigo-50 border border-indigo-200 px-2 py-0.5 text-[10px] font-bold text-indigo-700">
+                                                    <span className="inline-flex items-center rounded-full bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 text-[10px] font-bold text-indigo-700 min-w-[27px] justify-center">
                                                         {selfCount}
                                                     </span>
                                                 </td>
