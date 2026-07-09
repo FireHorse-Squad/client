@@ -728,7 +728,7 @@ export default function CostingSchedule() {
                                                     <span>{getOccupationDisplay(row)}</span>
                                                     <span className="text-[10px] font-normal text-slate-400">[{row.type}]</span>
                                                 </td>
-                                                <td className="px-4 py-3.5 border-r border-slate-100 text-green-700 font-semibold">
+                                                <td className="px-4 py-3.5 border-r border-slate-100 text-[#22C55E] font-semibold">
                                                     {selfCount}
                                                 </td>
                                                 <td className={`px-3 py-3.5 text-center font-mono ${row.entry.NT.mon + row.entry.OT.mon + row.entry.DT.mon > 0 ? "text-slate-900 font-bold" : "text-slate-300"}`}>{dayVal("mon")}</td>
