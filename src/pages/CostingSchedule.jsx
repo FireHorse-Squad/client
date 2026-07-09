@@ -410,23 +410,43 @@ export default function CostingSchedule() {
         fetchData().then(() => setIsRefreshing(false));
     };
 
-    const handleDownload = () => {
-        if (!pdfRef.current || data.length === 0) return;
-        setDownloading(true);
-        const opt = {
-            margin: 10,
-            filename: `Costing_Schedule_${activeClientName.replace(/\s+/g, "_")}_${new Date().toISOString().split("T")[0]}.pdf`,
-            image: { type: "jpeg", quality: 0.98 },
-            html2canvas: { scale: 2, useCORS: true },
-            jsPDF: { unit: "mm", format: "a4", orientation: "landscape" },
-        };
-        html2pdf()
-            .set(opt)
-            .from(pdfRef.current)
-            .save()
-            .then(() => setDownloading(false))
-            .catch(() => setDownloading(false));
+const handleDownload = async () => {
+    setDownloading(true);
+    const element = pdfRef.current;
+    
+    // 1. Save original styles to restore them later
+    const originalStyle = element.style.cssText;
+    const originalWidth = element.style.width;
+
+
+    element.style.transform = "scale(0.7)"; 
+    element.style.transformOrigin = "top left";
+    element.style.width = "142%"; 
+
+    const opt = {
+        margin: 5,
+        filename: `Costing_Schedule_${activeClientName.replace(/\s+/g, "_")}_${new Date().toISOString().split("T")[0]}.pdf`,
+        image: { type: "jpeg", quality: 0.98 },
+        html2canvas: { 
+            scale: 2, 
+            useCORS: true,
+            windowWidth: element.scrollWidth 
+        },
+        jsPDF: { unit: "mm", format: "a4", orientation: "landscape" },
     };
+
+    try {
+        // 3. Trigger the PDF generation
+        await html2pdf().set(opt).from(element).save();
+    } catch (err) {
+        console.error("PDF generation failed:", err);
+    } finally {
+        // 4. Restore original styles so the UI on the screen looks normal again
+        element.style.cssText = originalStyle;
+        element.style.width = originalWidth;
+        setDownloading(false);
+    }
+};
 
     const { data } = useMemo(() => {
         let filteredTimesheets = allTimesheets.filter((ts) => ts.status !== "archived");
