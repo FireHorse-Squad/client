@@ -107,16 +107,16 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
             } else if (txCode === 1920 && matchedRate) {
                 const lunchDeduction =
                     timesheet.actual_lunch_hours !== null &&
-                    timesheet.actual_lunch_hours !== undefined &&
-                    timesheet.actual_lunch_hours !== ""
+                        timesheet.actual_lunch_hours !== undefined &&
+                        timesheet.actual_lunch_hours !== ""
                         ? parseFloat(timesheet.actual_lunch_hours)
                         : parseFloat(matchedRate?.deduct_lunch_hour) || 0;
                 overTimeHours = totalHours - lunchDeduction;
             } else if (timesheet.shift_type !== "Task") {
                 const lunchDeduction =
                     timesheet.actual_lunch_hours !== null &&
-                    timesheet.actual_lunch_hours !== undefined &&
-                    timesheet.actual_lunch_hours !== ""
+                        timesheet.actual_lunch_hours !== undefined &&
+                        timesheet.actual_lunch_hours !== ""
                         ? parseFloat(timesheet.actual_lunch_hours)
                         : parseFloat(matchedRate?.deduct_lunch_hour) || 0;
                 if (isDoubleShift) {
@@ -410,43 +410,43 @@ export default function CostingSchedule() {
         fetchData().then(() => setIsRefreshing(false));
     };
 
-const handleDownload = async () => {
-    setDownloading(true);
-    const element = pdfRef.current;
-    
-    // 1. Save original styles to restore them later
-    const originalStyle = element.style.cssText;
-    const originalWidth = element.style.width;
+    const handleDownload = async () => {
+        setDownloading(true);
+        const element = pdfRef.current;
+
+        // 1. Save original styles to restore them later
+        const originalStyle = element.style.cssText;
+        const originalWidth = element.style.width;
 
 
-    element.style.transform = "scale(0.7)"; 
-    element.style.transformOrigin = "top left";
-    element.style.width = "142%"; 
+        element.style.transform = "scale(0.7)";
+        element.style.transformOrigin = "top left";
+        element.style.width = "142%";
 
-    const opt = {
-        margin: 5,
-        filename: `Costing_Schedule_${activeClientName.replace(/\s+/g, "_")}_${new Date().toISOString().split("T")[0]}.pdf`,
-        image: { type: "jpeg", quality: 0.98 },
-        html2canvas: { 
-            scale: 2, 
-            useCORS: true,
-            windowWidth: element.scrollWidth 
-        },
-        jsPDF: { unit: "mm", format: "a4", orientation: "landscape" },
+        const opt = {
+            margin: 5,
+            filename: `Costing_Schedule_${activeClientName.replace(/\s+/g, "_")}_${new Date().toISOString().split("T")[0]}.pdf`,
+            image: { type: "jpeg", quality: 0.98 },
+            html2canvas: {
+                scale: 2,
+                useCORS: true,
+                windowWidth: element.scrollWidth
+            },
+            jsPDF: { unit: "mm", format: "a4", orientation: "landscape" },
+        };
+
+        try {
+            // 3. Trigger the PDF generation
+            await html2pdf().set(opt).from(element).save();
+        } catch (err) {
+            console.error("PDF generation failed:", err);
+        } finally {
+            // 4. Restore original styles so the UI on the screen looks normal again
+            element.style.cssText = originalStyle;
+            element.style.width = originalWidth;
+            setDownloading(false);
+        }
     };
-
-    try {
-        // 3. Trigger the PDF generation
-        await html2pdf().set(opt).from(element).save();
-    } catch (err) {
-        console.error("PDF generation failed:", err);
-    } finally {
-        // 4. Restore original styles so the UI on the screen looks normal again
-        element.style.cssText = originalStyle;
-        element.style.width = originalWidth;
-        setDownloading(false);
-    }
-};
 
     const { data } = useMemo(() => {
         let filteredTimesheets = allTimesheets.filter((ts) => ts.status !== "archived");
@@ -729,9 +729,7 @@ const handleDownload = async () => {
                                                     <span className="text-[10px] font-normal text-slate-400">[{row.type}]</span>
                                                 </td>
                                                 <td className="px-4 py-3.5 border-r border-slate-100 text-slate-700 font-semibold">
-                                                    <span className="inline-flex items-center rounded-full bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 text-[10px] font-bold text-indigo-700 min-w-[27px] justify-center">
-                                                        {selfCount}
-                                                    </span>
+                                                    {selfCount}
                                                 </td>
                                                 <td className={`px-3 py-3.5 text-center font-mono ${row.entry.NT.mon + row.entry.OT.mon + row.entry.DT.mon > 0 ? "text-slate-900 font-bold" : "text-slate-300"}`}>{dayVal("mon")}</td>
                                                 <td className={`px-3 py-3.5 text-center font-mono ${row.entry.NT.tue + row.entry.OT.tue + row.entry.DT.tue > 0 ? "text-slate-900 font-bold" : "text-slate-300"}`}>{dayVal("tue")}</td>
