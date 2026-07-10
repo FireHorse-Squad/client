@@ -323,6 +323,8 @@ export default function Clients() {
         <div className="space-y-8 animate-in fade-in duration-200">
             <div className="bg-white rounded-2xl border border-slate-200/80 p-4 sm:p-6 md:p-8">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+
+
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center border border-slate-200/80 shadow-xs">
                             <svg className="w-5 h-5 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -334,15 +336,18 @@ export default function Clients() {
                             <p className="text-xs text-slate-500 font-medium">Client management and rate configuration.</p>
                         </div>
                     </div>
-                    <button
-                        className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100/80 active:scale-[0.98] border border-emerald-200/80 hover:border-emerald-300 shadow-xs"
-                    >
-                        <FileSpreadsheet className="w-4 h-4 text-emerald-600" strokeWidth={2.2} />
-                        <span>Import Rates</span>
-                    </button>
-                    <button onClick={() => handleOpenModal()} className="w-full sm:w-auto px-4 py-3 sm:py-2 bg-[#1742c4] hover:bg-blue-800 text-white text-xs font-bold rounded-lg shadow transition flex items-center justify-center gap-2 min-h-[44px]">
-                        <Plus size={16} /> New Client
-                    </button>
+
+
+                    <div className="flex items-center gap-3">
+                        <button className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100/80 active:scale-[0.98] border border-emerald-200/80 hover:border-emerald-300 shadow-xs">
+                            <FileSpreadsheet className="w-4 h-4 text-emerald-600" strokeWidth={2.2} />
+                            <span>Import Rates</span>
+                        </button>
+
+                        <button onClick={() => handleOpenModal()} className="px-4 py-2.5 bg-[#1742c4] hover:bg-blue-800 text-white text-sm font-bold rounded-xl shadow transition flex items-center justify-center gap-2">
+                            <Plus size={16} /> New Client
+                        </button>
+                    </div>
                 </div>
             </div>
 
