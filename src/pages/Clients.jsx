@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import api from '../utils/api';
-import { Plus, Edit, Trash2, X, AlertCircle, CheckSquare, Square } from 'lucide-react';
+import { Plus, Edit, FileSpreadsheet, Trash2, X, AlertCircle, CheckSquare, Square } from 'lucide-react';
 import BulkDeleteModal from '../components/common/BulkDeleteModal';
 import { dispatchDataChange, onDataChange } from '../utils/dataSync';
 
@@ -334,6 +334,12 @@ export default function Clients() {
                             <p className="text-xs text-slate-500 font-medium">Client management and rate configuration.</p>
                         </div>
                     </div>
+                    <button
+                        className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100/80 active:scale-[0.98] border border-emerald-200/80 hover:border-emerald-300 shadow-xs"
+                    >
+                        <FileSpreadsheet className="w-4 h-4 text-emerald-600" strokeWidth={2.2} />
+                        <span>Import Rates</span>
+                    </button>
                     <button onClick={() => handleOpenModal()} className="w-full sm:w-auto px-4 py-3 sm:py-2 bg-[#1742c4] hover:bg-blue-800 text-white text-xs font-bold rounded-lg shadow transition flex items-center justify-center gap-2 min-h-[44px]">
                         <Plus size={16} /> New Client
                     </button>
@@ -343,119 +349,119 @@ export default function Clients() {
             {error && <div className="p-4 bg-red-50 border border-red-200 text-red-600 rounded-lg">{error}</div>}
 
 
-                <div className="w-full flex flex-col bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden">
-                    <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                        <div>
-                            <h1 className="text-xl font-bold text-slate-800">Client Rates</h1>
-                            <p className="text-xs text-slate-500 mt-1">{filteredData.length} client rate records</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <input type="text" placeholder="Search clients..." value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setPage(0); }} className="px-3 py-1.5 border border-slate-300 rounded-lg text-xs w-48" />
-                        </div>
+            <div className="w-full flex flex-col bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden">
+                <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                        <h1 className="text-xl font-bold text-slate-800">Client Rates</h1>
+                        <p className="text-xs text-slate-500 mt-1">{filteredData.length} client rate records</p>
                     </div>
-                    {selectedIds.length > 0 && (
-                        <div className="bg-red-50 border-b border-red-200 px-6 py-3 flex items-center justify-between">
-                            <span className="text-sm font-semibold text-red-700">
-                                {selectedIds.length} client{selectedIds.length > 1 ? "s" : ""} selected
-                            </span>
-                            <button
-                                onClick={handleBulkDeleteClick}
-                                className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white text-sm font-bold rounded-lg hover:bg-red-700 transition-colors shadow-sm"
-                            >
-                                <Trash2 className="w-4 h-4" />
-                                Delete Selected
-                            </button>
-                        </div>
-                    )}
-                    <div className="flex-grow overflow-auto max-h-[58vh] relative min-h-[400px] bg-slate-50 border-b border-slate-200">
-                        <table className="w-full border-separate border-spacing-0 table-fixed select-text">
-                            <thead className="sticky top-0 z-20">
-                                <tr>
-                                    {DISPLAY_FIELDS.map((column, index) => {
-                                        if (column.isCheckbox) {
-                                            return (
-                                                <th key={column.key} style={{ minWidth: `${column.minWidth}px`, width: `${column.minWidth}px`, backgroundColor: HEADER_BG }} className="text-white font-semibold text-xs py-3.5 px-2 uppercase tracking-wider text-center border-r border-indigo-900/40 select-none rounded-tl-sm">
-                                                    <button onClick={handleSelectAll} className="hover:opacity-80 transition" title={selectedIds.length === paginatedData.length && paginatedData.length > 0 ? "Deselect All" : "Select All Clients"}>
-                                                        {selectedIds.length === paginatedData.length && paginatedData.length > 0 ? <CheckSquare className="w-4 h-4 text-white" /> : <Square className="w-4 h-4 text-white/70" />}
-                                                    </button>
-                                                </th>
-                                            );
-                                        }
+                    <div className="flex items-center gap-2">
+                        <input type="text" placeholder="Search clients..." value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setPage(0); }} className="px-3 py-1.5 border border-slate-300 rounded-lg text-xs w-48" />
+                    </div>
+                </div>
+                {selectedIds.length > 0 && (
+                    <div className="bg-red-50 border-b border-red-200 px-6 py-3 flex items-center justify-between">
+                        <span className="text-sm font-semibold text-red-700">
+                            {selectedIds.length} client{selectedIds.length > 1 ? "s" : ""} selected
+                        </span>
+                        <button
+                            onClick={handleBulkDeleteClick}
+                            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white text-sm font-bold rounded-lg hover:bg-red-700 transition-colors shadow-sm"
+                        >
+                            <Trash2 className="w-4 h-4" />
+                            Delete Selected
+                        </button>
+                    </div>
+                )}
+                <div className="flex-grow overflow-auto max-h-[58vh] relative min-h-[400px] bg-slate-50 border-b border-slate-200">
+                    <table className="w-full border-separate border-spacing-0 table-fixed select-text">
+                        <thead className="sticky top-0 z-20">
+                            <tr>
+                                {DISPLAY_FIELDS.map((column, index) => {
+                                    if (column.isCheckbox) {
                                         return (
-                                            <th key={column.key} style={{ minWidth: `${column.minWidth}px`, width: `${column.minWidth}px`, backgroundColor: HEADER_BG }} className={`text-white font-semibold text-xs py-3.5 px-4 uppercase tracking-wider text-left border-r border-indigo-900/40 select-none ${column.align === 'right' ? 'text-right' : 'text-left'} ${index === DISPLAY_FIELDS.length - 1 ? 'rounded-tr-sm' : ''}`}>
-                                                <div className="flex items-center justify-between cursor-pointer" onClick={() => handleSort(column.key)}>
-                                                    <span>{column.label}</span>
-                                                    <span className="text-[9px] opacity-60">⇅</span>
-                                                </div>
+                                            <th key={column.key} style={{ minWidth: `${column.minWidth}px`, width: `${column.minWidth}px`, backgroundColor: HEADER_BG }} className="text-white font-semibold text-xs py-3.5 px-2 uppercase tracking-wider text-center border-r border-indigo-900/40 select-none rounded-tl-sm">
+                                                <button onClick={handleSelectAll} className="hover:opacity-80 transition" title={selectedIds.length === paginatedData.length && paginatedData.length > 0 ? "Deselect All" : "Select All Clients"}>
+                                                    {selectedIds.length === paginatedData.length && paginatedData.length > 0 ? <CheckSquare className="w-4 h-4 text-white" /> : <Square className="w-4 h-4 text-white/70" />}
+                                                </button>
                                             </th>
                                         );
-                                    })}
-                                    <th key="actions" style={{ minWidth: '80px', width: '80px', backgroundColor: HEADER_BG }} className="text-white font-semibold text-xs py-3.5 px-4 uppercase tracking-wider text-center border-r border-indigo-900/40 select-none rounded-tr-sm">ACTIONS</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-200">
-                                {paginatedData.length > 0 ? (
-                                    paginatedData.map((row, rowIndex) => {
-                                        const isEven = rowIndex % 2 === 0;
-                                        const rowClass = isEven ? 'bg-[#F5F7FA] hover:bg-slate-200/80 transition-colors' : 'bg-white hover:bg-slate-100 transition-colors';
-                                        return (
-                                            <tr key={row.id} className={rowClass}>
-                                                {DISPLAY_FIELDS.map((column) => {
-                                                    if (column.isCheckbox) {
-                                                        return (
-                                                            <td key={column.key} style={{ width: `${column.minWidth}px` }} className="px-2 py-3 text-xs border-r border-slate-200/60 text-center">
-                                                                <button
-                                                                    onClick={() => handleSelectRow(row.id)}
-                                                                    className={`transition ${selectedIds.includes(row.id) ? "text-[#1742c4]" : "text-slate-300 hover:text-slate-400"}`}
-                                                                    title={selectedIds.includes(row.id) ? "Deselect" : "Select"}
-                                                                >
-                                                                    {selectedIds.includes(row.id) ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
-                                                                </button>
-                                                            </td>
-                                                        );
-                                                    }
-                                                    const cellVal = row[column.key];
-                                                    const isNumeric = column.align === 'right';
+                                    }
+                                    return (
+                                        <th key={column.key} style={{ minWidth: `${column.minWidth}px`, width: `${column.minWidth}px`, backgroundColor: HEADER_BG }} className={`text-white font-semibold text-xs py-3.5 px-4 uppercase tracking-wider text-left border-r border-indigo-900/40 select-none ${column.align === 'right' ? 'text-right' : 'text-left'} ${index === DISPLAY_FIELDS.length - 1 ? 'rounded-tr-sm' : ''}`}>
+                                            <div className="flex items-center justify-between cursor-pointer" onClick={() => handleSort(column.key)}>
+                                                <span>{column.label}</span>
+                                                <span className="text-[9px] opacity-60">⇅</span>
+                                            </div>
+                                        </th>
+                                    );
+                                })}
+                                <th key="actions" style={{ minWidth: '80px', width: '80px', backgroundColor: HEADER_BG }} className="text-white font-semibold text-xs py-3.5 px-4 uppercase tracking-wider text-center border-r border-indigo-900/40 select-none rounded-tr-sm">ACTIONS</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200">
+                            {paginatedData.length > 0 ? (
+                                paginatedData.map((row, rowIndex) => {
+                                    const isEven = rowIndex % 2 === 0;
+                                    const rowClass = isEven ? 'bg-[#F5F7FA] hover:bg-slate-200/80 transition-colors' : 'bg-white hover:bg-slate-100 transition-colors';
+                                    return (
+                                        <tr key={row.id} className={rowClass}>
+                                            {DISPLAY_FIELDS.map((column) => {
+                                                if (column.isCheckbox) {
                                                     return (
-                                                        <td key={column.key} style={{ width: `${column.minWidth}px` }} className={`px-4 py-3 text-xs border-r border-slate-200/60 truncate text-slate-700 font-medium ${isNumeric ? 'text-right font-mono text-slate-800' : 'text-left'}`} title={String(cellVal ?? '-')}>
-                                                            {isNumeric ? (cellVal != null ? `R ${getNumericValue(cellVal)}` : '-') : (cellVal || '-')}
+                                                        <td key={column.key} style={{ width: `${column.minWidth}px` }} className="px-2 py-3 text-xs border-r border-slate-200/60 text-center">
+                                                            <button
+                                                                onClick={() => handleSelectRow(row.id)}
+                                                                className={`transition ${selectedIds.includes(row.id) ? "text-[#1742c4]" : "text-slate-300 hover:text-slate-400"}`}
+                                                                title={selectedIds.includes(row.id) ? "Deselect" : "Select"}
+                                                            >
+                                                                {selectedIds.includes(row.id) ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+                                                            </button>
                                                         </td>
                                                     );
-                                                })}
-                                                <td className="px-4 py-3 text-xs text-center border-r border-slate-200/60" style={{ width: '80px' }}>
-                                                    <div className="flex justify-center gap-1">
-                                                        <button onClick={() => handleOpenModal(row)} className="p-1 text-slate-400 hover:text-blue-600 transition-colors"><Edit size={14} /></button>
-                                                        <button onClick={() => setDeleteConfirm(row.id)} className="p-1 text-slate-400 hover:text-red-600 transition-colors"><Trash2 size={14} /></button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })
-                                ) : (
-                                    <tr><td colSpan={DISPLAY_FIELDS.length + 1} className="py-16 text-center text-slate-400 bg-white"><div className="flex flex-col items-center justify-center"><div className="text-slate-300 text-5xl mb-3">📭</div><p className="text-base font-semibold text-slate-500">No client records found</p></div></td></tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                    <div className="px-6 py-4 bg-white border-t border-slate-200 flex flex-col md:flex-row justify-between items-center gap-4 text-xs sm:text-sm text-[#2D328F] select-none">
-                        <div className="text-center md:text-left">Showing <strong className="text-[#2D328F]">{Math.min(filteredData.length, page * rowsPerPage + 1)}</strong> to <strong className="text-[#2D328F]">{Math.min(filteredData.length, (page + 1) * rowsPerPage)}</strong> of <strong className="text-[#2D328F]">{filteredData.length}</strong> clients</div>
-                        <div className="flex flex-wrap items-center justify-center gap-6">
-                            <div className="flex items-center gap-2"><span className="text-xs text-[#2D328F]">Rows per page:</span>
-                                <div className="relative"><select value={rowsPerPage} onChange={handleRowsPerPageChange} className="bg-[#2D328F]-100 hover:bg-slate-200 text-[#2D328F] border border-[#2D328F] rounded-[10px] px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#2D328F] pr-7 appearance-none cursor-pointer font-medium"><option value={10}>10</option><option value={20}>20</option><option value={50}>50</option></select>
-                                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-[#2D328F]"><svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" /></svg></div>
-                                </div>
+                                                }
+                                                const cellVal = row[column.key];
+                                                const isNumeric = column.align === 'right';
+                                                return (
+                                                    <td key={column.key} style={{ width: `${column.minWidth}px` }} className={`px-4 py-3 text-xs border-r border-slate-200/60 truncate text-slate-700 font-medium ${isNumeric ? 'text-right font-mono text-slate-800' : 'text-left'}`} title={String(cellVal ?? '-')}>
+                                                        {isNumeric ? (cellVal != null ? `R ${getNumericValue(cellVal)}` : '-') : (cellVal || '-')}
+                                                    </td>
+                                                );
+                                            })}
+                                            <td className="px-4 py-3 text-xs text-center border-r border-slate-200/60" style={{ width: '80px' }}>
+                                                <div className="flex justify-center gap-1">
+                                                    <button onClick={() => handleOpenModal(row)} className="p-1 text-slate-400 hover:text-blue-600 transition-colors"><Edit size={14} /></button>
+                                                    <button onClick={() => setDeleteConfirm(row.id)} className="p-1 text-slate-400 hover:text-red-600 transition-colors"><Trash2 size={14} /></button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })
+                            ) : (
+                                <tr><td colSpan={DISPLAY_FIELDS.length + 1} className="py-16 text-center text-slate-400 bg-white"><div className="flex flex-col items-center justify-center"><div className="text-slate-300 text-5xl mb-3">📭</div><p className="text-base font-semibold text-slate-500">No client records found</p></div></td></tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+                <div className="px-6 py-4 bg-white border-t border-slate-200 flex flex-col md:flex-row justify-between items-center gap-4 text-xs sm:text-sm text-[#2D328F] select-none">
+                    <div className="text-center md:text-left">Showing <strong className="text-[#2D328F]">{Math.min(filteredData.length, page * rowsPerPage + 1)}</strong> to <strong className="text-[#2D328F]">{Math.min(filteredData.length, (page + 1) * rowsPerPage)}</strong> of <strong className="text-[#2D328F]">{filteredData.length}</strong> clients</div>
+                    <div className="flex flex-wrap items-center justify-center gap-6">
+                        <div className="flex items-center gap-2"><span className="text-xs text-[#2D328F]">Rows per page:</span>
+                            <div className="relative"><select value={rowsPerPage} onChange={handleRowsPerPageChange} className="bg-[#2D328F]-100 hover:bg-slate-200 text-[#2D328F] border border-[#2D328F] rounded-[10px] px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#2D328F] pr-7 appearance-none cursor-pointer font-medium"><option value={10}>10</option><option value={20}>20</option><option value={50}>50</option></select>
+                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-[#2D328F]"><svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" /></svg></div>
                             </div>
-                            <div className="flex items-center gap-1"><span className="text-xs text-[#2D328F] mr-2">Page <strong className="text-[#2D328F]">{page + 1}</strong> of <strong className="text-[#2D328F]">{totalPages}</strong></span>
-                                <button onClick={() => handlePageChange(0)} disabled={page === 0} className="p-1.5 rounded text-[#2D328F] hover:bg-[#F5B52A] disabled:opacity-30 transition-colors cursor-pointer"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 19l-7-7 7-7M20 19l-7-7 7-7" /></svg></button>
-                                <button onClick={() => handlePageChange(page - 1)} disabled={page === 0} className="p-1.5 rounded text-slate-600 hover:bg-slate-100 disabled:opacity-30 transition-colors cursor-pointer"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg></button>
-                                <div className="hidden sm:flex items-center gap-1">{Array.from({ length: totalPages }).map((_, pIdx) => { if (pIdx < page - 1 || pIdx > page + 1) return null; return <button key={pIdx} onClick={() => handlePageChange(pIdx)} className={`w-8 h-8 rounded-full text-xs font-semibold transition-all cursor-pointer ${page === pIdx ? 'bg-[#2D328F] text-white shadow' : 'text-slate-600 hover:bg-slate-100'}`}>{pIdx + 1}</button>; })}</div>
-                                <button onClick={() => handlePageChange(page + 1)} disabled={page === totalPages - 1} className="p-1.5 rounded text-slate-600 hover:bg-slate-100 disabled:opacity-30 transition-colors cursor-pointer"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg></button>
-                                <button onClick={() => handlePageChange(totalPages - 1)} disabled={page === totalPages - 1} className="p-1.5 rounded text-slate-600 hover:bg-slate-100 disabled:opacity-30 transition-colors cursor-pointer"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 5l7 7-7 7M4 5l7 7-7 7" /></svg></button>
-                            </div>
+                        </div>
+                        <div className="flex items-center gap-1"><span className="text-xs text-[#2D328F] mr-2">Page <strong className="text-[#2D328F]">{page + 1}</strong> of <strong className="text-[#2D328F]">{totalPages}</strong></span>
+                            <button onClick={() => handlePageChange(0)} disabled={page === 0} className="p-1.5 rounded text-[#2D328F] hover:bg-[#F5B52A] disabled:opacity-30 transition-colors cursor-pointer"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 19l-7-7 7-7M20 19l-7-7 7-7" /></svg></button>
+                            <button onClick={() => handlePageChange(page - 1)} disabled={page === 0} className="p-1.5 rounded text-slate-600 hover:bg-slate-100 disabled:opacity-30 transition-colors cursor-pointer"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg></button>
+                            <div className="hidden sm:flex items-center gap-1">{Array.from({ length: totalPages }).map((_, pIdx) => { if (pIdx < page - 1 || pIdx > page + 1) return null; return <button key={pIdx} onClick={() => handlePageChange(pIdx)} className={`w-8 h-8 rounded-full text-xs font-semibold transition-all cursor-pointer ${page === pIdx ? 'bg-[#2D328F] text-white shadow' : 'text-slate-600 hover:bg-slate-100'}`}>{pIdx + 1}</button>; })}</div>
+                            <button onClick={() => handlePageChange(page + 1)} disabled={page === totalPages - 1} className="p-1.5 rounded text-slate-600 hover:bg-slate-100 disabled:opacity-30 transition-colors cursor-pointer"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg></button>
+                            <button onClick={() => handlePageChange(totalPages - 1)} disabled={page === totalPages - 1} className="p-1.5 rounded text-slate-600 hover:bg-slate-100 disabled:opacity-30 transition-colors cursor-pointer"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 5l7 7-7 7M4 5l7 7-7 7" /></svg></button>
                         </div>
                     </div>
                 </div>
-            
+            </div>
+
 
             {deleteConfirm && (
                 <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
