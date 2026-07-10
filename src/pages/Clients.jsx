@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import api from '../utils/api';
 import { Plus, Edit, FileSpreadsheet, Trash2, X, AlertCircle, CheckSquare, Square } from 'lucide-react';
 import BulkDeleteModal from '../components/common/BulkDeleteModal';
@@ -61,6 +61,9 @@ export default function Clients() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [importing, setImporting] = useState(false);
+    const [importType, setImportType] = useState(null);
+    const [importMsg, setImportMsg] = useState(null);
     const [editingClient, setEditingClient] = useState(null);
     const [formData, setFormData] = useState({});
     const [submitting, setSubmitting] = useState(false);
@@ -70,6 +73,7 @@ export default function Clients() {
     const [bulkDeleting, setBulkDeleting] = useState(false);
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(10);
+    const clientInputRef = useRef(null);
 
     const [searchTerm, setSearchTerm] = useState('');
     const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
@@ -202,6 +206,28 @@ export default function Clients() {
             setError(err.response?.data?.message || 'Failed to save client');
         } finally {
             setSubmitting(false);
+        }
+    };
+
+
+    const handleClientImport = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        setImporting(true);
+        setImportType('csv');
+        setImportMsg(null);
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            const res = await api.post('/clientrates/import', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+            setImportMsg({ type: 'success', text: res.data.message || `Imported ${res.data.imported} clientrates` });
+            dispatchDataChange('csv-import');
+            window.location.reload();
+        } catch (err) {
+            setImportMsg({ type: 'error', text: err.response?.data?.message || 'CSV import failed' });
+        } finally {
+            setImporting(false);
+            e.target.value = '';
         }
     };
 
@@ -339,16 +365,25 @@ export default function Clients() {
 
 
                     <div className="flex items-center gap-3">
-                        <button className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100/80 active:scale-[0.98] border border-emerald-200/80 hover:border-emerald-300 shadow-xs">
+                        <button
+                            onClick={() => clientInputRef.current?.click()}
+                            disabled={importing}
+                            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100/80 active:scale-[0.98] border border-emerald-200/80 hover:border-emerald-300 shadow-xs">
                             <FileSpreadsheet className="w-4 h-4 text-emerald-600" strokeWidth={2.2} />
-                            <span>Import Rates</span>
+                            <span>{importing && importType === 'csv' ? 'Importing...' : 'Import Rates'}</span>
                         </button>
+                        <input ref={clientInputRef} type="file" accept=".csv" className="hidden" onChange={handleClientImport} />
 
                         <button onClick={() => handleOpenModal()} className="px-4 py-2.5 bg-[#1742c4] hover:bg-blue-800 text-white text-sm font-bold rounded-xl shadow transition flex items-center justify-center gap-2">
                             <Plus size={16} /> New Client
                         </button>
                     </div>
                 </div>
+                 {importMsg && (
+                    <div className={`mt-4 p-3 rounded-lg text-sm font-medium flex items-center gap-2 ${importMsg.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                        {importMsg.text}
+                    </div>
+                )}
             </div>
 
             {error && <div className="p-4 bg-red-50 border border-red-200 text-red-600 rounded-lg">{error}</div>}
