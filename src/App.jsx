@@ -51,7 +51,7 @@ function AppLayout() {
         <div className="min-h-screen bg-slate-100 text-slate-800 font-sans flex flex-col">
             <TopBar user={user} />
             <main className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8">
-                <div className="max-w-7xl mx-auto">
+                <div className="max-w-[1900px] mx-auto">
                     <Routes>
                         {/* <Route path="/dashboard" element={
                             <ProtectedRoute requiredRoles={PAGE_ROLES['/dashboard']}>

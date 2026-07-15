@@ -158,6 +158,7 @@ const calculateRow = (timesheet, clientRates, employees) => {
         clientId: timesheet.client_id || '',
         clientName: timesheet.client_name || '',
         empNo: timesheet.co_number || '',
+        employeeName,
         txCode: timesheet.transaction_code || '',
         shiftType: timesheet.shift_type || '',
         occupation: timesheet.occupation || '',
@@ -170,7 +171,7 @@ const calculateRow = (timesheet, clientRates, employees) => {
         ntPay: parseFloat(ntPay.toFixed(2)),
         otPay: parseFloat(otPay.toFixed(2)),
         dtPay: parseFloat(dtPay.toFixed(2)),
-        employeeName,
+        
     };
 };
 
@@ -181,6 +182,7 @@ const COLUMNS = [
     { id: 'clientId', label: 'CLIENT ID', minWidth: 120 },
     { id: 'clientName', label: 'CLIENT NAME', minWidth: 200 },
     { id: 'empNo', label: 'EMP NO', minWidth: 110 },
+    { id: 'employeeName', label: 'EMPLOYEE NAME', minWidth: 220 },
     { id: 'occupation', label: 'OCCUPATION', minWidth: 150 },
     { id: 'txCode', label: 'TX CODE', minWidth: 110 },
     { id: 'shiftType', label: 'SHIFT TYPE', minWidth: 130 },
@@ -193,7 +195,7 @@ const COLUMNS = [
     { id: 'ntPay', label: 'NT PAY(R)', minWidth: 120, align: 'right' },
     { id: 'otPay', label: 'OT PAY(R)', minWidth: 120, align: 'right' },
     { id: 'dtPay', label: 'DT PAY(R)', minWidth: 120, align: 'right' },
-    { id: 'employeeName', label: 'EMPLOYEE NAME', minWidth: 220 },
+    
     { id: 'actions', label: 'ACTIONS', minWidth: 90, align: 'center' },
 ];
 
@@ -466,11 +468,11 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
                 </div>
             )}
             <div className="flex-1 overflow-auto max-h-[58vh] relative bg-slate-50 border-b border-slate-200">
-                <table className="w-full border-separate border-spacing-0 table-fixed select-text">
+                <table className="w-full border-separate border-spacing-0 table-auto select-text">
                     <thead className="sticky top-0 z-20">
                         <tr>
                             <th
-                                style={{ minWidth: `${COLUMNS[0].minWidth}px`, width: `${COLUMNS[0].minWidth}px`, backgroundColor: HEADER_BG }}
+                                style={{ minWidth: `${COLUMNS[0].minWidth}px`, backgroundColor: HEADER_BG }}
                                 className="text-white font-semibold text-xs py-3.5 px-2 uppercase tracking-wider text-center border-r border-indigo-900/40 select-none rounded-tl-sm"
                             >
                                 <button
@@ -520,7 +522,7 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
                                 return (
                                     <tr key={row.id} className={rowClass}>
                                         <td
-                                            style={{ width: `${COLUMNS[0].minWidth}px` }}
+                                            style={{ minWidth: `${COLUMNS[0].minWidth}px` }}
                                             className="px-2 py-3 text-xs border-r border-slate-200/60 text-center"
                                         >
                                             <button

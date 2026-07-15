@@ -178,16 +178,13 @@ export const calculateBatchExportRow = (timesheet, clientRates) => {
     if (timesheet.shift_type === "Task") {
         const units = parseFloat(timesheet.units) || 0;
         const taskRate = parseFloat(timesheet.rate) || 0;
-        return {
-            co_number: timesheet.co_number,
-            transactionCode: timesheet.transaction_code,
-            jobCode: new Date(timesheet.timesheet_date).getDate().toString().padStart(2, "0"),
-            costCentre: timesheet.client_id,
-            qtyHrs: `${units.toFixed(0)} Units`,
-            rate: taskRate.toFixed(2),
-            amount: (units * taskRate).toFixed(2),
-            override: "N",
-        };
+        const txCode = parseInt(timesheet.transaction_code, 10);
+        if (txCode === 1921 || txCode === 1922) {
+            return buildBatchExportRow(timesheet, timesheet.transaction_code, units, taskRate, units * taskRate, timesheet.shift_type);
+        } else if (txCode === 1920) {
+            return buildBatchExportRow(timesheet, "1920", units, taskRate, units * taskRate, timesheet.shift_type);
+        }
+        return buildBatchExportRow(timesheet, timesheet.transaction_code, units, taskRate, units * taskRate, timesheet.shift_type);
     }
 
     const rate = findRate(clientRates, timesheet.client_id, timesheet.occupation);
@@ -335,7 +332,20 @@ export const calculateTimesheetRow = (timesheet, clientRates, employees) => {
     const txCode = parseInt(timesheet.transaction_code, 10);
     const isAdHoc = timesheet.shift_type === "Ad-Hoc";
 
-    if (isBiometric) {
+    if (timesheet.shift_type === "Task") {
+        const totalUnits = parseFloat(timesheet.units) || 0;
+        const taskTxCode = parseInt(timesheet.transaction_code, 10);
+        if (taskTxCode === 1921 || taskTxCode === 1922) {
+            dtHrs = totalUnits;
+            dtPay = totalUnits * (parseFloat(timesheet.rate) || 0);
+        } else if (taskTxCode === 1920) {
+            otHrs = totalUnits;
+            otPay = totalUnits * (parseFloat(timesheet.rate) || 0);
+        } else {
+            ntHrs = totalUnits;
+            ntPay = totalUnits * (parseFloat(timesheet.rate) || 0);
+        }
+    } else if (isBiometric) {
         totalHours = parseFloat(timesheet.total_hours) || 0;
         const lunchDeduction =
             timesheet.actual_lunch_hours !== null &&
@@ -440,10 +450,20 @@ export const calculateEmployeeData = (timesheets, clientRates, employees) => {
             const txCode = parseInt(timesheet.transaction_code, 10);
             const isAdHoc = timesheet.shift_type === "Ad-Hoc";
 
-            if (timesheet.shift_type === "Task") {
-                normalTime = parseFloat(timesheet.units) || 0;
-                normalTimePay = normalTime * (parseFloat(timesheet.rate) || 0);
-            } else if (isBiometric) {
+    if (timesheet.shift_type === "Task") {
+        const totalUnits = parseFloat(timesheet.units) || 0;
+        const txCode = parseInt(timesheet.transaction_code, 10);
+        if (txCode === 1921 || txCode === 1922) {
+            doubleTimeHours = totalUnits;
+            doubleTimePay = totalUnits * (parseFloat(timesheet.rate) || 0);
+        } else if (txCode === 1920) {
+            overTimeHours = totalUnits;
+            overTimePay = totalUnits * (parseFloat(timesheet.rate) || 0);
+        } else {
+            normalTime = totalUnits;
+            normalTimePay = normalTime * (parseFloat(timesheet.rate) || 0);
+        }
+    } else if (isBiometric) {
                 const biometricHours = parseFloat(timesheet.total_hours) || 0;
                 const lunchDeduction =
                     timesheet.actual_lunch_hours !== null &&

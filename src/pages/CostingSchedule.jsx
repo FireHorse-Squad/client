@@ -143,10 +143,18 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
                     OT: { count: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
                     DT: { count: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
                     days: new Set(),
+                    tsNumbersNT: new Set(),
+                    tsNumbersOT: new Set(),
+                    tsNumbersDT: new Set(),
                 };
             }
             const entry = data[groupKey];
             entry.days.add(dayLower);
+            if (timesheet.timesheet_number) {
+                if (normalTime > 0) entry.tsNumbersNT.add(timesheet.timesheet_number);
+                if (overTimeHours > 0) entry.tsNumbersOT.add(timesheet.timesheet_number);
+                if (doubleTimeHours > 0) entry.tsNumbersDT.add(timesheet.timesheet_number);
+            }
 
             if (normalTime > 0) {
                 entry.NT[dayLower] += normalTime;
@@ -166,6 +174,16 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
 
     const processSemiAgg = () => {
         const summaries = calculateSemiWeeklySummary(semiTimesheets, clientRates, employees, publicHolidays);
+        const semiTsNumbersByGroup = {};
+        semiTimesheets.forEach((ts) => {
+            const groupKey = `${ts.co_number}|${ts.occupation}`;
+            if (!semiTsNumbersByGroup[groupKey]) {
+                semiTsNumbersByGroup[groupKey] = new Set();
+            }
+            if (ts.timesheet_number) {
+                semiTsNumbersByGroup[groupKey].add(ts.timesheet_number);
+            }
+        });
         summaries.forEach((summary) => {
             const groupKey = `${summary.co_number}|${summary.occupation}`;
             const fullRate =
@@ -185,7 +203,7 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
                 );
             if (!data[groupKey]) {
                 data[groupKey] = {
-                    client_id: summary.co_number,
+                    client_id: summary.client_id,
                     client_name: summary.client_name || "",
                     occupation: summary.occupation,
                     rateInfo: fullRate,
@@ -194,9 +212,18 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
                     OT: { count: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
                     DT: { count: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
                     days: new Set(),
+                    tsNumbersNT: new Set(),
+                    tsNumbersOT: new Set(),
+                    tsNumbersDT: new Set(),
                 };
             }
             const entry = data[groupKey];
+            if (summary.normalTime > 0 && semiTsNumbersByGroup[groupKey]) {
+                semiTsNumbersByGroup[groupKey].forEach((num) => entry.tsNumbersNT.add(num));
+            }
+            if (summary.overTime > 0 && semiTsNumbersByGroup[groupKey]) {
+                semiTsNumbersByGroup[groupKey].forEach((num) => entry.tsNumbersOT.add(num));
+            }
             if (summary.normalTime > 0) {
                 const daysInWeek = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
                 const perDay = summary.normalTime / daysInWeek.length;
@@ -243,7 +270,8 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
                     rate = parseFloat(rateInfo.ot_2_0_rate) || 0;
                     invoiceRate = parseFloat(rateInfo.ot_2_0_invoice_rate) || 0;
                 }
-                return { key, entry, type, rate, invoiceRate };
+                const tsKey = type === "NT" ? "tsNumbersNT" : type === "OT" ? "tsNumbersOT" : "tsNumbersDT";
+                return { key, entry, type, rate, invoiceRate, timesheetNumbers: entry[tsKey] || new Set() };
             });
         })
         .sort((a, b) => {
@@ -414,14 +442,21 @@ export default function CostingSchedule() {
         setDownloading(true);
         const element = pdfRef.current;
 
-        // 1. Save original styles to restore them later
         const originalStyle = element.style.cssText;
         const originalWidth = element.style.width;
-
+        const originalMaxHeight = element.style.maxHeight;
+        const originalOverflowY = element.style.overflowY;
 
         element.style.transform = "scale(0.7)";
         element.style.transformOrigin = "top left";
         element.style.width = "142%";
+        element.style.maxHeight = "none";
+        element.style.overflowY = "visible";
+
+        const rowStyle = document.createElement("style");
+        rowStyle.id = "pdf-row-pagebreak-style";
+        rowStyle.textContent = "table tr { page-break-inside: avoid !important; }";
+        document.head.appendChild(rowStyle);
 
         const opt = {
             margin: 5,
@@ -436,14 +471,17 @@ export default function CostingSchedule() {
         };
 
         try {
-            // 3. Trigger the PDF generation
             await html2pdf().set(opt).from(element).save();
         } catch (err) {
             console.error("PDF generation failed:", err);
         } finally {
-            // 4. Restore original styles so the UI on the screen looks normal again
+            const injectedStyle = document.getElementById("pdf-row-pagebreak-style");
+            if (injectedStyle) injectedStyle.remove();
+
             element.style.cssText = originalStyle;
             element.style.width = originalWidth;
+            element.style.maxHeight = originalMaxHeight;
+            element.style.overflowY = originalOverflowY;
             setDownloading(false);
         }
     };
@@ -670,7 +708,7 @@ export default function CostingSchedule() {
                     </button>
                 </div>
 
-                <div className="bg-white rounded-3xl shadow-xl shadow-slate-100/80 border border-slate-100/80 overflow-hidden">
+                <div className="bg-white rounded-3xl shadow-xl shadow-slate-100/80 border border-slate-100/80">
                     <div className="bg-slate-50/70 border-b border-slate-100 px-6 py-4 flex flex-col sm:flex-row justify-between sm:items-center gap-2">
                         <div className="flex items-center gap-2">
                             <CalendarIcon />
@@ -679,7 +717,7 @@ export default function CostingSchedule() {
                         <span className="text-[10px] text-slate-400 font-mono">{data.length} schedule entries</span>
                     </div>
 
-                    <div ref={pdfRef} className="overflow-x-auto overflow-y-auto max-h-[500px]">
+                    <div ref={pdfRef} className="overflow-y-auto max-h-[50vh] lg:max-h-[70vh]">
                         {data.length === 0 ? (
                             <div className="text-center py-12 text-slate-400">
                                 <div className="text-slate-300 text-5xl mb-3">📊</div>
@@ -687,28 +725,29 @@ export default function CostingSchedule() {
                                 <p className="text-xs mt-1">Select a client to view the costing schedule.</p>
                             </div>
                         ) : (
-                            <table className="w-full border-collapse border-spacing-0 text-left">
+                            <table className="border-collapse border-spacing-0 text-left w-full">
                                 <thead>
                                     <tr className="bg-[#2D328F]">
-                                        <th colSpan="2" className="px-4 py-2.5 text-[10px] font-black tracking-widest text-slate-200 border-r border-slate-700/50 uppercase">Resource Particulars</th>
+                                        <th colSpan="3" className="px-4 py-2.5 text-[10px] font-black tracking-widest text-slate-200 border-r border-slate-700/50 uppercase">{activeClientName} - {selectedClientId}</th>
                                         <th colSpan="7" className="px-4 py-2.5 text-center text-[10px] font-black tracking-widest text-slate-200 border-r border-slate-700/50 uppercase bg-indigo-950/40">Weekly Hours Breakdown</th>
                                         <th colSpan="5" className="px-4 py-2.5 text-right text-[10px] font-black tracking-widest text-slate-200 uppercase">Costing & Billing Rates (R)</th>
                                     </tr>
                                     <tr className="bg-[#2D328F]/95 text-[11px] font-bold text-white uppercase tracking-wider sticky top-0 z-10 border-b border-slate-700">
-                                        <th className="px-5 py-3.5 min-w-[240px] sticky left-0 bg-[#2D328F] z-20 shadow-[2px_0_5px_rgba(0,0,0,0.15)]">Role / Description</th>
-                                        <th className="px-4 py-3.5 min-w-[110px] border-r border-indigo-900/40">Total Emp</th>
-                                        <th className="px-3 py-3.5 text-center min-w-[65px] bg-indigo-950/25">Mon</th>
-                                        <th className="px-3 py-3.5 text-center min-w-[65px] bg-indigo-950/25">Tue</th>
-                                        <th className="px-3 py-3.5 text-center min-w-[65px] bg-indigo-950/25">Wed</th>
-                                        <th className="px-3 py-3.5 text-center min-w-[65px] bg-indigo-950/25">Thu</th>
-                                        <th className="px-3 py-3.5 text-center min-w-[65px] bg-indigo-950/25">Fri</th>
-                                        <th className="px-3 py-3.5 text-center min-w-[65px] bg-amber-500/20 text-amber-200">Sat</th>
-                                        <th className="px-3 py-3.5 text-center min-w-[65px] bg-amber-500/20 text-amber-200 border-r border-indigo-900/40">Sun</th>
-                                        <th className="px-4 py-3.5 text-center min-w-[90px] font-black text-indigo-200">Total</th>
-                                        <th className="px-4 py-3.5 text-right min-w-[100px]">Hrly Rate</th>
-                                        <th className="px-4 py-3.5 text-right min-w-[110px] font-semibold text-amber-300">Cost</th>
-                                        <th className="px-4 py-3.5 text-right min-w-[100px]">Inv Rate</th>
-                                        <th className="px-4 py-3.5 text-right min-w-[110px] font-bold text-green-300">Charge</th>
+                                        <th style={{ width: "120px" }} className="px-2 py-3 bg-[#2D328F] shadow-[2px_0_5px_rgba(0,0,0,0.15)] text-[10px]">TS No</th>
+                                        <th style={{ width: "200px" }} className="px-3 py-3 bg-[#2D328F] shadow-[2px_0_5px_rgba(0,0,0,0.15)]">Role / Description</th>
+                                        <th style={{ width: "90px" }} className="px-2 py-3 border-r border-indigo-900/40 text-[10px]">Total Emp</th>
+                                        <th style={{ width: "45px" }} className="px-1.5 py-3 text-center bg-indigo-950/25 text-[10px]">Mon</th>
+                                        <th style={{ width: "45px" }} className="px-1.5 py-3 text-center bg-indigo-950/25 text-[10px]">Tue</th>
+                                        <th style={{ width: "45px" }} className="px-1.5 py-3 text-center bg-indigo-950/25 text-[10px]">Wed</th>
+                                        <th style={{ width: "45px" }} className="px-1.5 py-3 text-center bg-indigo-950/25 text-[10px]">Thu</th>
+                                        <th style={{ width: "45px" }} className="px-1.5 py-3 text-center bg-indigo-950/25 text-[10px]">Fri</th>
+                                        <th style={{ width: "45px" }} className="px-1.5 py-3 text-center bg-amber-500/20 text-amber-200 text-[10px]">Sat</th>
+                                        <th style={{ width: "45px" }} className="px-1.5 py-3 text-center bg-amber-500/20 text-amber-200 border-r border-indigo-900/40 text-[10px]">Sun</th>
+                                        <th style={{ width: "60px" }} className="px-2 py-3 text-center font-black text-indigo-200 text-[10px]">Total</th>
+                                        <th style={{ width: "75px" }} className="px-2 py-3 text-right text-[10px]">Hrly Rate</th>
+                                        <th style={{ width: "85px" }} className="px-2 py-3 text-right font-black text-orange-200 text-[10px]">Cost</th>
+                                        <th style={{ width: "75px" }} className="px-2 py-3 text-right text-[10px]">Inv Rate</th>
+                                        <th style={{ width: "85px" }} className="px-2 py-3 text-right font-black text-emerald-200 text-[10px]">Charge</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 text-xs text-slncreateate-600 font-medium">
@@ -724,47 +763,55 @@ export default function CostingSchedule() {
 
                                         return (
                                             <tr key={row.key + "-" + row.type} className={`${rowBg} transition-all duration-150`}>
-                                                <td className={`px-5 py-3.5 text-slate-800 font-bold sticky left-0 z-10 shadow-[2px_0_5px_rgba(0,0,0,0.02)] ${isSmoke ? "bg-[#F9FAFC]" : "bg-white"} flex flex-col gap-0.5`}>
-                                                    <span>{getOccupationDisplay(row)}</span>
-                                                    <span className="text-[10px] font-normal text-slate-400">[{row.type}]</span>
+                                                <td style={{ width: "120px" }} className={`px-2 py-2 text-slate-800 font-bold shadow-[2px_0_5px_rgba(0,0,0,0.02)] ${isSmoke ? "bg-[#F9FAFC]" : "bg-white"} text-center`}>
+                                                    <div className="flex flex-wrap gap-x-1 gap-y-0 justify-center font-mono text-[12px] leading-tight">
+                                                        {[...(row.timesheetNumbers || [])].sort().map((num, i) => (
+                                                            <span key={i}>{num}</span>
+                                                        ))}
+                                                    </div>
                                                 </td>
-                                                <td className="px-4 py-3.5 border-r border-slate-100 text-indigo-600 font-semibold">
+                                                <td style={{ width: "200px" }} className={`px-3 py-2 text-slate-800 font-bold shadow-[2px_0_5px_rgba(0,0,0,0.02)] ${isSmoke ? "bg-[#F9FAFC]" : "bg-white"} flex flex-col gap-0.5`}>
+                                                    <span className="text-[11px]">{getOccupationDisplay(row)}</span>
+                                                    <span className="text-[9px] font-normal text-slate-900">[{row.type}]</span>
+                                                </td>
+                                                <td style={{ width: "90px" }} className="px-2 py-2 border-r border-slate-100 text-indigo-600 font-semibold text-[11px]">
                                                     {selfCount}
                                                 </td>
-                                                <td className={`px-3 py-3.5 text-center font-mono ${row.entry.NT.mon + row.entry.OT.mon + row.entry.DT.mon > 0 ? "text-slate-900 font-bold" : "text-slate-300"}`}>{dayVal("mon")}</td>
-                                                <td className={`px-3 py-3.5 text-center font-mono ${row.entry.NT.tue + row.entry.OT.tue + row.entry.DT.tue > 0 ? "text-slate-900 font-bold" : "text-slate-300"}`}>{dayVal("tue")}</td>
-                                                <td className={`px-3 py-3.5 text-center font-mono ${row.entry.NT.wed + row.entry.OT.wed + row.entry.DT.wed > 0 ? "text-slate-900 font-bold" : "text-slate-300"}`}>{dayVal("wed")}</td>
-                                                <td className={`px-3 py-3.5 text-center font-mono ${row.entry.NT.thu + row.entry.OT.thu + row.entry.DT.thu > 0 ? "text-slate-900 font-bold" : "text-slate-300"}`}>{dayVal("thu")}</td>
-                                                <td className={`px-3 py-3.5 text-center font-mono ${row.entry.NT.fri + row.entry.OT.fri + row.entry.DT.fri > 0 ? "text-slate-900 font-bold" : "text-slate-300"}`}>{dayVal("fri")}</td>
-                                                <td className={`px-3 py-3.5 text-center font-mono bg-amber-50/40 text-amber-800 ${row.entry.NT.sat + row.entry.OT.sat + row.entry.DT.sat > 0 ? "font-bold" : "text-slate-300"}`}>{dayVal("sat")}</td>
-                                                <td className={`px-3 py-3.5 text-center font-mono bg-amber-50/40 text-amber-800 border-r border-slate-100 ${row.entry.NT.sun + row.entry.OT.sun + row.entry.DT.sun > 0 ? "font-bold" : "text-slate-300"}`}>{dayVal("sun")}</td>
-                                                <td className="px-4 py-3.5 text-center font-black text-indigo-600 bg-indigo-50/40">{totalRowHrs.toFixed(2)}</td>
-                                                <td className="px-4 py-3.5 text-right font-mono text-slate-500">R {rowRate.toFixed(2)}</td>
-                                                <td className="px-4 py-3.5 text-right font-mono font-bold text-slate-800">R {rowCost.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                                                <td className="px-4 py-3.5 text-right font-mono text-slate-500">R {row.invoiceRate.toFixed(2)}</td>
-                                                <td className="px-4 py-3.5 text-right font-mono font-black text-slate-900 bg-green-50/25">R {rowCharge.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                                <td style={{ width: "45px" }} className={`px-2 py-2 text-center font-mono ${row.entry.NT.mon + row.entry.OT.mon + row.entry.DT.mon > 0 ? "text-slate-900 font-bold" : "text-slate-300"} text-[11px]`}>{dayVal("mon")}</td>
+                                                <td style={{ width: "45px" }} className={`px-2 py-2 text-center font-mono ${row.entry.NT.tue + row.entry.OT.tue + row.entry.DT.tue > 0 ? "text-slate-900 font-bold" : "text-slate-300"} text-[11px]`}>{dayVal("tue")}</td>
+                                                <td style={{ width: "45px" }} className={`px-2 py-2 text-center font-mono ${row.entry.NT.wed + row.entry.OT.wed + row.entry.DT.wed > 0 ? "text-slate-900 font-bold" : "text-slate-300"} text-[11px]`}>{dayVal("wed")}</td>
+                                                <td style={{ width: "45px" }} className={`px-2 py-2 text-center font-mono ${row.entry.NT.thu + row.entry.OT.thu + row.entry.DT.thu > 0 ? "text-slate-900 font-bold" : "text-slate-300"} text-[11px]`}>{dayVal("thu")}</td>
+                                                <td style={{ width: "45px" }} className={`px-2 py-2 text-center font-mono ${row.entry.NT.fri + row.entry.OT.fri + row.entry.DT.fri > 0 ? "text-slate-900 font-bold" : "text-slate-300"} text-[11px]`}>{dayVal("fri")}</td>
+                                                <td style={{ width: "45px" }} className={`px-2 py-2 text-center font-mono bg-amber-50/40 text-amber-800 ${row.entry.NT.sat + row.entry.OT.sat + row.entry.DT.sat > 0 ? "font-bold" : "text-slate-300"} text-[11px]`}>{dayVal("sat")}</td>
+                                                <td style={{ width: "45px" }} className={`px-2 py-2 text-center font-mono bg-amber-50/40 text-amber-800 border-r border-slate-100 ${row.entry.NT.sun + row.entry.OT.sun + row.entry.DT.sun > 0 ? "font-bold" : "text-slate-300"} text-[11px]`}>{dayVal("sun")}</td>
+                                                <td style={{ width: "60px" }} className="px-2 py-2 text-center font-black text-indigo-600 bg-indigo-50/40 text-[11px]">{totalRowHrs.toFixed(2)}</td>
+                                                <td style={{ width: "75px" }} className="px-2 py-2 text-right font-mono font-bold text-slate-900 text-[11px]">R {rowRate.toFixed(2)}</td>
+                                                <td style={{ width: "85px" }} className="px-2 py-2 text-right font-mono font-black text-slate-900 bg-orange-50/40 text-[11px]">R {rowCost.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                                <td style={{ width: "75px" }} className="px-2 py-2 text-right font-mono font-bold text-slate-900 text-[11px]">R {row.invoiceRate.toFixed(2)}</td>
+                                                <td style={{ width: "85px" }} className="px-2 py-2 text-right font-mono font-black text-slate-900 bg-emerald-50/40 text-[11px]">R {rowCharge.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                             </tr>
                                         );
                                     })}
                                     <tr className="bg-slate-100/90 text-slate-900 font-black text-xs border-t-2 border-slate-300">
-                                        <td className="px-5 py-4 sticky left-0 bg-slate-100 z-10 shadow-[2px_0_5px_rgba(0,0,0,0.05)] font-black uppercase tracking-wider text-slate-800">
+                                        <td style={{ width: "120px" }} className="px-2 py-2.5 bg-slate-100 shadow-[2px_0_5px_rgba(0,0,0,0.05)]"></td>
+                                        <td style={{ width: "200px" }} className="px-3 py-2.5 bg-slate-100 shadow-[2px_0_5px_rgba(0,0,0,0.05)] font-black uppercase tracking-wider text-slate-800">
                                             Grand Total
                                         </td>
-                                        <td className="px-4 py-4 border-r border-slate-200"></td>
-                                        <td className="px-3 py-4 text-center font-mono">{totals.mon.toFixed(2)}</td>
-                                        <td className="px-3 py-4 text-center font-mono">{totals.tue.toFixed(2)}</td>
-                                        <td className="px-3 py-4 text-center font-mono">{totals.wed.toFixed(2)}</td>
-                                        <td className="px-3 py-4 text-center font-mono">{totals.thu.toFixed(2)}</td>
-                                        <td className="px-3 py-4 text-center font-mono">{totals.fri.toFixed(2)}</td>
-                                        <td className="px-3 py-4 text-center font-mono bg-amber-100/50">{totals.sat.toFixed(2)}</td>
-                                        <td className="px-3 py-4 text-center font-mono bg-amber-100/50 border-r border-slate-200">{totals.sun.toFixed(2)}</td>
-                                        <td className="px-4 py-4 text-center font-mono bg-indigo-100 text-indigo-900 text-sm font-black">{totals.totalHrs.toFixed(2)}</td>
-                                        <td className="px-4 py-4 text-right text-[10px] text-slate-400">Average Rate</td>
-                                        <td className="px-4 py-4 text-right font-mono text-sm font-black text-slate-900">
+                                        <td style={{ width: "90px" }} className="px-2 py-2.5 border-r border-slate-200"></td>
+                                        <td style={{ width: "45px" }} className="px-2 py-2.5 text-center font-mono">{totals.mon.toFixed(2)}</td>
+                                        <td style={{ width: "45px" }} className="px-2 py-2.5 text-center font-mono">{totals.tue.toFixed(2)}</td>
+                                        <td style={{ width: "45px" }} className="px-2 py-2.5 text-center font-mono">{totals.wed.toFixed(2)}</td>
+                                        <td style={{ width: "45px" }} className="px-2 py-2.5 text-center font-mono">{totals.thu.toFixed(2)}</td>
+                                        <td style={{ width: "45px" }} className="px-2 py-2.5 text-center font-mono">{totals.fri.toFixed(2)}</td>
+                                        <td style={{ width: "45px" }} className="px-2 py-2.5 text-center font-mono bg-amber-100/50">{totals.sat.toFixed(2)}</td>
+                                        <td style={{ width: "45px" }} className="px-2 py-2.5 text-center font-mono bg-amber-100/50 border-r border-slate-200">{totals.sun.toFixed(2)}</td>
+                                        <td style={{ width: "60px" }} className="px-2 py-2.5 text-center font-mono bg-indigo-100 text-indigo-900 text-[11px] font-black">{totals.totalHrs.toFixed(2)}</td>
+                                        <td style={{ width: "75px" }} className="px-2 py-2.5 text-right text-[9px] text-slate-400">Average Rate</td>
+                                        <td style={{ width: "85px" }} className="px-2 py-2.5 text-right font-mono text-[11px] font-black text-slate-900 bg-orange-100">
                                             R {totals.cost.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                         </td>
-                                        <td className="px-4 py-4 text-right text-[10px] text-slate-400">Average Inv</td>
-                                        <td className="px-4 py-4 text-right font-mono text-sm font-black text-green-700 bg-green-100/50">
+                                        <td style={{ width: "75px" }} className="px-2 py-2.5 text-right text-[9px] text-slate-400">Average Inv</td>
+                                        <td style={{ width: "85px" }} className="px-2 py-2.5 text-right font-mono text-[11px] font-black text-slate-900 bg-emerald-100">
                                             R {totals.charge.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                         </td>
                                     </tr>
