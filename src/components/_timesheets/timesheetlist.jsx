@@ -107,8 +107,8 @@ const calculateRow = (timesheet, clientRates, employees) => {
                     ntHrs = netHours;
                     ntPay = ntHrs * (parseFloat(rate?.nt_hourly_rate) || 0);
                 } else {
-                    ntHrs = biometricHours;
-                    ntPay = biometricHours * (parseFloat(rate?.nt_hourly_rate) || 0);
+                    ntHrs = netHours;
+                    ntPay = netHours * (parseFloat(rate?.nt_hourly_rate) || 0);
                 }
             }
         }

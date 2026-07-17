@@ -103,7 +103,13 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
                 clientRatesList[0];
 
             if ((txCode === 1921 || txCode === 1922) && matchedRate) {
-                doubleTimeHours = totalHours;
+                const lunchDeduction =
+                    timesheet.actual_lunch_hours !== null &&
+                        timesheet.actual_lunch_hours !== undefined &&
+                        timesheet.actual_lunch_hours !== ""
+                        ? parseFloat(timesheet.actual_lunch_hours)
+                        : parseFloat(matchedRate?.deduct_lunch_hour) || 0;
+                doubleTimeHours = totalHours - lunchDeduction;
             } else if (txCode === 1920 && matchedRate) {
                 const lunchDeduction =
                     timesheet.actual_lunch_hours !== null &&

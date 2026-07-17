@@ -144,7 +144,7 @@ const processNonSemiTimesheets = (clientTimesheets, rates) => {
                 if (isAdHoc) {
                     normalTime = netHours;
                 } else {
-                    normalTime = totalHours;
+                    normalTime = netHours;
                 }
             }
         } else if (timesheet.shift_type !== "Task") {

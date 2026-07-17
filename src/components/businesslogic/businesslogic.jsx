@@ -366,8 +366,8 @@ export const calculateTimesheetRow = (timesheet, clientRates, employees) => {
                 ntHrs = netHours;
                 ntPay = ntHrs * (parseFloat(rate?.sub_total_a) || 0);
             } else {
-                ntHrs = totalHours;
-                ntPay = totalHours * (parseFloat(rate?.nt_hourly_rate) || 0);
+                ntHrs = netHours;
+                ntPay = netHours * (parseFloat(rate?.nt_hourly_rate) || 0);
             }
         }
     } else {
