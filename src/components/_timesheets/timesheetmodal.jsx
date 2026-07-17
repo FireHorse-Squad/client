@@ -69,6 +69,9 @@ const TimesheetModal = ({ isOpen, onClose, onSave, editData, onDelete }) => {
     const [clientOccupations, setClientOccupations] = useState([]);
     const [selectedOccupation, setSelectedOccupation] = useState("");
 
+    const onCloseRef = useRef(onClose);
+    onCloseRef.current = onClose;
+
     const showIdleStateFunc = () => {
         setShowIdleState(true);
         setShowErrorState(false);
@@ -313,7 +316,7 @@ const TimesheetModal = ({ isOpen, onClose, onSave, editData, onDelete }) => {
         const handleKeyDown = (e) => {
 
             if (e.key === 'Escape') {
-                onClose();
+                onCloseRef.current();
                 return;
             }
 
@@ -344,7 +347,7 @@ const TimesheetModal = ({ isOpen, onClose, onSave, editData, onDelete }) => {
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isOpen, editData, onClose]);
+    }, [isOpen, editData]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -377,6 +380,38 @@ const TimesheetModal = ({ isOpen, onClose, onSave, editData, onDelete }) => {
                 await api.post('/timesheets', payload);
                 setCoCount((prev) => prev + 1);
                 setSnackbarMessage("Timesheet saved successfully!");
+
+                const preservedTimesheetNumber = formData.timesheet_number;
+                const preservedTimesheetDate = formData.timesheet_date;
+                const preservedClientId = formData.client_id;
+                const preservedClientName = formData.client_name;
+
+                setFormData((prev) => ({
+                    ...initialFormData,
+                    timesheet_number: preservedTimesheetNumber,
+                    timesheet_date: preservedTimesheetDate,
+                    client_id: preservedClientId,
+                    client_name: preservedClientName,
+                }));
+                setClientSearch(preservedClientId ? `${preservedClientId} - ${preservedClientName}` : "");
+                setCoCount(0);
+                setShowIdleState(true);
+                setShowErrorState(false);
+                setShowEmployeeBadge(false);
+                setBadgeInitials("");
+                setBadgeName("");
+                setBadgeOccupation("");
+                setBadgeId("");
+                setActiveMatchId("");
+                setClientSearchOpen(false);
+                setSelectedClient(preservedClientId ? { client_id: preservedClientId, client_name: preservedClientName } : null);
+                setFilteredClients([]);
+                if (preservedClientId) {
+                    updateClientOccupations(preservedClientId);
+                } else {
+                    setClientOccupations([]);
+                }
+                setSelectedOccupation("");
             }
 
             setSnackbarSeverity("success");
@@ -413,6 +448,26 @@ const TimesheetModal = ({ isOpen, onClose, onSave, editData, onDelete }) => {
             setClientOccupations([]);
             setSelectedOccupation("");
         }
+    };
+
+    const handleClose = () => {
+        setFormData({ ...initialFormData });
+        setCoCount(0);
+        setShowIdleState(true);
+        setShowErrorState(false);
+        setShowEmployeeBadge(false);
+        setBadgeInitials("");
+        setBadgeName("");
+        setBadgeOccupation("");
+        setBadgeId("");
+        setActiveMatchId("");
+        setClientSearch("");
+        setClientSearchOpen(false);
+        setSelectedClient(null);
+        setFilteredClients([]);
+        setClientOccupations([]);
+        setSelectedOccupation("");
+        onClose();
     };
 
     const handleSnackbarClose = (event, reason) => {
@@ -453,7 +508,7 @@ const TimesheetModal = ({ isOpen, onClose, onSave, editData, onDelete }) => {
                             <RefreshCw className="w-6 h-6" />
                         </button>
                         <button
-                            onClick={onClose}
+                            onClick={handleClose}
                             className="text-[#F5B52A] hover:text-red-500 transition-colors p-1 focus:ring-2 focus:ring-blue-500 outline-none"
                         >
                             <X className="w-8 h-8" />
@@ -636,7 +691,7 @@ const TimesheetModal = ({ isOpen, onClose, onSave, editData, onDelete }) => {
                     <div className="px-4 sm:px-6 md:px-8 py-4 flex flex-col-reverse sm:flex-row justify-end items-center gap-3">
                         <button
                             type="button"
-                            onClick={onClose}
+                            onClick={handleClose}
                             className="w-full sm:w-auto px-5 py-2.5 text-sm font-semibold text-slate-700 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors min-h-[44px] focus:ring-2 focus:ring-blue-500 outline-none"
                         >
                             Cancel

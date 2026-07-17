@@ -515,9 +515,12 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
                         {paginatedData.length > 0 ? (
                             paginatedData.map((row, rowIndex) => {
                                 const isSmokeWhite = rowIndex % 2 === 0;
-                                const rowClass = isSmokeWhite
-                                    ? 'bg-[#F5F7FA] hover:bg-slate-200/80 transition-colors'
-                                    : 'bg-white hover:bg-slate-100 transition-colors';
+                                const isSelected = selectedIds.includes(row.id);
+                                const rowClass = isSelected
+                                    ? 'bg-indigo-100 hover:bg-indigo-200 transition-colors'
+                                    : isSmokeWhite
+                                        ? 'bg-[#F5F7FA] hover:bg-slate-200/80 transition-colors'
+                                        : 'bg-white hover:bg-slate-100 transition-colors';
 
                                 return (
                                     <tr key={row.id} className={rowClass}>
