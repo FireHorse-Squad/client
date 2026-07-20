@@ -414,7 +414,15 @@ const TimesheetModal = ({ isOpen, onClose, onSave, editData, onDelete }) => {
                 setSelectedClient(preservedClientId ? { client_id: preservedClientId, client_name: preservedClientName } : null);
                 setFilteredClients([]);
                 if (preservedClientId) {
-                    updateClientOccupations(preservedClientId);
+                    const occupations = [...new Set(
+                        clientRates
+                            .filter((cr) => cr.client_id?.toString().trim().toUpperCase() === preservedClientId.toString().trim().toUpperCase() && cr.occupation)
+                            .map((cr) => cr.occupation)
+                    )];
+                    if (preservedOccupation && !occupations.includes(preservedOccupation)) {
+                        occupations.push(preservedOccupation);
+                    }
+                    setClientOccupations(occupations);
                 } else {
                     setClientOccupations([]);
                 }
