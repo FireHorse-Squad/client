@@ -385,6 +385,9 @@ const TimesheetModal = ({ isOpen, onClose, onSave, editData, onDelete }) => {
                 const preservedTimesheetDate = formData.timesheet_date;
                 const preservedClientId = formData.client_id;
                 const preservedClientName = formData.client_name;
+                const preservedOccupation = formData.occupation;
+                const preservedTransactionCode = formData.transaction_code;
+                const preservedShiftType = formData.shift_type;
 
                 setFormData((prev) => ({
                     ...initialFormData,
@@ -392,6 +395,9 @@ const TimesheetModal = ({ isOpen, onClose, onSave, editData, onDelete }) => {
                     timesheet_date: preservedTimesheetDate,
                     client_id: preservedClientId,
                     client_name: preservedClientName,
+                    occupation: preservedOccupation,
+                    transaction_code: preservedTransactionCode,
+                    shift_type: preservedShiftType,
                 }));
                 setClientSearch(preservedClientId ? `${preservedClientId} - ${preservedClientName}` : "");
                 setCoCount(0);
@@ -400,7 +406,8 @@ const TimesheetModal = ({ isOpen, onClose, onSave, editData, onDelete }) => {
                 setShowEmployeeBadge(false);
                 setBadgeInitials("");
                 setBadgeName("");
-                setBadgeOccupation("");
+                setBadgeOccupation(preservedOccupation || "");
+                setBadgeShiftType(preservedShiftType || "");
                 setBadgeId("");
                 setActiveMatchId("");
                 setClientSearchOpen(false);
@@ -411,7 +418,7 @@ const TimesheetModal = ({ isOpen, onClose, onSave, editData, onDelete }) => {
                 } else {
                     setClientOccupations([]);
                 }
-                setSelectedOccupation("");
+                setSelectedOccupation(preservedOccupation || "");
             }
 
             setSnackbarSeverity("success");
