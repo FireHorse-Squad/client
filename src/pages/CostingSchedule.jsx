@@ -340,6 +340,7 @@ export default function CostingSchedule() {
     const [publicHolidays, setPublicHolidays] = useState([]);
     const [selectedClientName, setSelectedClientName] = useState("");
     const [selectedClientId, setSelectedClientId] = useState("");
+    const [selectedTsNo, setSelectedTsNo] = useState("");
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [isRefreshing, setIsRefreshing] = useState(false);
@@ -423,6 +424,7 @@ export default function CostingSchedule() {
     const handleClientNameChange = (e) => {
         const name = e.target.value;
         setSelectedClientName(name);
+        setSelectedTsNo("");
         if (name) {
             const ids = nameToClientIds[name] || [];
             if (ids.length === 1) {
@@ -437,6 +439,35 @@ export default function CostingSchedule() {
 
     const handleClientIdChange = (e) => {
         setSelectedClientId(e.target.value);
+        setSelectedTsNo("");
+    };
+
+    const tsNumberOptions = useMemo(() => {
+        let source = allTimesheets.filter((ts) => ts.status !== "archived" && ts.timesheet_number);
+
+        if (selectedClientName) {
+            source = source.filter(
+                (ts) => ts.client_name && ts.client_name.toString().trim() === selectedClientName
+            );
+        }
+
+        if (selectedClientId) {
+            source = source.filter(
+                (ts) => ts.client_id && ts.client_id.toString().trim() === selectedClientId
+            );
+        }
+
+        const unique = [...new Set(source.map((ts) => ts.timesheet_number.toString()))];
+        return unique.sort((a, b) => {
+            const aNum = parseFloat(a);
+            const bNum = parseFloat(b);
+            if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
+            return a.localeCompare(b);
+        });
+    }, [allTimesheets, selectedClientName, selectedClientId]);
+
+    const handleTsNoChange = (e) => {
+        setSelectedTsNo(e.target.value);
     };
 
     const handleRefresh = () => {
@@ -511,9 +542,15 @@ export default function CostingSchedule() {
             );
         }
 
+        if (selectedTsNo) {
+            filteredTimesheets = filteredTimesheets.filter(
+                (ts) => ts.timesheet_number && ts.timesheet_number.toString() === selectedTsNo
+            );
+        }
+
         const result = processCostingData(filteredTimesheets, filteredClientRates, allEmployees, publicHolidays);
         return { data: result.data, dates: result.dates };
-    }, [allTimesheets, allClientRates, allEmployees, publicHolidays, selectedClientName, selectedClientId]);
+    }, [allTimesheets, allClientRates, allEmployees, publicHolidays, selectedClientName, selectedClientId, selectedTsNo]);
 
     const totals = useMemo(() => {
         let monTot = 0, tueTot = 0, wedTot = 0, thuTot = 0, friTot = 0, satTot = 0, sunTot = 0;
@@ -620,6 +657,25 @@ export default function CostingSchedule() {
                                     <option value="">All Cost Codes</option>
                                     {availableClientIds.map(id => (
                                         <option key={id} value={id}>{id}</option>
+                                    ))}
+                                </select>
+                                <span className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-slate-400">
+                                    <ChevronDown className="w-4 h-4" />
+                                </span>
+                            </div>
+                        </div>
+
+                        <div className="flex flex-col gap-1.5 flex-1 min-w-[180px]">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Filter by Timesheet No</label>
+                            <div className="relative">
+                                <select
+                                    value={selectedTsNo}
+                                    onChange={handleTsNoChange}
+                                    className="w-full bg-slate-50 border border-slate-200 text-slate-700 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-semibold appearance-none cursor-pointer pr-10"
+                                >
+                                    <option value="">All</option>
+                                    {tsNumberOptions.map(num => (
+                                        <option key={num} value={num}>{num}</option>
                                     ))}
                                 </select>
                                 <span className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-slate-400">
