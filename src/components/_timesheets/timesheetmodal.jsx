@@ -400,7 +400,6 @@ const TimesheetModal = ({ isOpen, onClose, onSave, editData, onDelete }) => {
                     shift_type: preservedShiftType,
                 }));
                 setClientSearch(preservedClientId ? `${preservedClientId} - ${preservedClientName}` : "");
-                setCoCount(0);
                 setShowIdleState(true);
                 setShowErrorState(false);
                 setShowEmployeeBadge(false);
