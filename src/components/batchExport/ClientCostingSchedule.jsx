@@ -341,6 +341,27 @@ const processTimesheetData = (timesheets, clientRates, clientId, employees = [],
                     _weeklyTotal: summary.overTime,
                 });
             }
+
+            if (summary.doubleTime > 0) {
+                data.push({
+                    id: `${summary.co_number}-${summary.weekStart}-DT`,
+                    co_number: summary.co_number,
+                    date: summary.weekStart,
+                    occupation: `${summary.occupation} DT`,
+                    timeType: "DT",
+                    rate: summary.dtRate,
+                    invoiceRate: parseFloat(summary.rate?.ot_2_0_invoice_rate || 0),
+                    employeeName: summary.employeeName,
+                    mon: 0,
+                    tue: 0,
+                    wed: 0,
+                    thu: 0,
+                    fri: 0,
+                    sat: 0,
+                    sun: 0,
+                    _weeklyTotal: summary.doubleTime,
+                });
+            }
         });
     }
 

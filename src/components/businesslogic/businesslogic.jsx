@@ -93,7 +93,8 @@ export const calculateSemiWeeklySummary = (semiTimesheets, clientRates, employee
         if (!rate) return;
         const empNo = ts.co_number;
         const weekKey = getWeekKey(ts.timesheet_date);
-        const key = `${empNo}-${weekKey}-${ts.client_id}-${ts.occupation}`;
+        const txCode = (ts.transaction_code || "").toString().trim();
+        const key = `${empNo}-${weekKey}-${ts.client_id}-${ts.occupation}-${txCode}`;
 
         if (!groups[key]) {
             const employee = employees.find(
@@ -107,14 +108,14 @@ export const calculateSemiWeeklySummary = (semiTimesheets, clientRates, employee
                 client_id: ts.client_id,
                 occupation: ts.occupation,
                 rate,
-                transactionCode: ts.transaction_code || rate?.transaction_code || "",
+                transactionCode: txCode,
                 totalNetHours: 0,
                 hasPublicHoliday: false,
                 hasSaturday: false,
                 daysWorked: 0,
             };
         } else if (ts.transaction_code) {
-            groups[key].transactionCode = ts.transaction_code;
+            groups[key].transactionCode = txCode;
         }
 
         const g = groups[key];
@@ -129,31 +130,43 @@ export const calculateSemiWeeklySummary = (semiTimesheets, clientRates, employee
         .map((g) => {
             const normalTimeRate = parseFloat(g.rate.nt_hourly_rate) || 0;
             const otRate = parseFloat(g.rate.ot_1_5_rate) || 0;
+            const dtRate = parseFloat(g.rate.ot_2_0_rate) || 0;
 
             let normalTime = 0;
             let overTime = 0;
+            let doubleTime = 0;
 
-            if (g.hasPublicHoliday && g.totalNetHours > 45) {
-                normalTime = g.totalNetHours;
-                overTime = 0;
+            const txCode = parseInt(g.transactionCode, 10);
+
+            if (txCode === 1921 || txCode === 1922) {
+                doubleTime = g.totalNetHours;
+            } else if (txCode === 1920) {
+                overTime = g.totalNetHours;
             } else {
-                normalTime = Math.min(g.totalNetHours, 45);
-                overTime = Math.max(0, g.totalNetHours - 45);
+                if (g.hasPublicHoliday && g.totalNetHours > 45) {
+                    normalTime = g.totalNetHours;
+                } else {
+                    normalTime = Math.min(g.totalNetHours, 45);
+                    overTime = Math.max(0, g.totalNetHours - 45);
+                }
             }
 
             return {
                 ...g,
                 normalTime: parseFloat(normalTime.toFixed(2)),
                 overTime: parseFloat(overTime.toFixed(2)),
+                doubleTime: parseFloat(doubleTime.toFixed(2)),
                 totalHours: parseFloat(g.totalNetHours.toFixed(2)),
                 normalTimePay: parseFloat((normalTime * normalTimeRate).toFixed(2)),
                 overTimePay: parseFloat((overTime * otRate).toFixed(2)),
+                doubleTimePay: parseFloat((doubleTime * dtRate).toFixed(2)),
                 rate: normalTimeRate,
                 otRate,
+                dtRate,
             };
         })
         .sort((a, b) =>
-            a.co_number.localeCompare(b.co_number) || a.weekKey.localeCompare(b.weekKey)
+            a.co_number.localeCompare(b.co_number) || a.weekKey.localeCompare(b.weekKey) || a.transactionCode.localeCompare(b.transactionCode)
         );
 };
 
@@ -298,6 +311,22 @@ export const calculateBatchExportData = (timesheets, clientRates, employees = []
                 qtyHrs: summary.overTime.toFixed(2),
                 rate: summary.otRate.toFixed(2),
                 amount: summary.overTimePay.toFixed(2),
+                override: "N",
+                shiftType: "Semi",
+                weekStart: summary.weekStart,
+                employeeName: summary.employeeName,
+                occupation: summary.occupation,
+            });
+        }
+        if (summary.doubleTime > 0) {
+            rows.push({
+                co_number: summary.co_number,
+                transactionCode: summary.transactionCode || "",
+                jobCode,
+                costCentre: summary.client_id,
+                qtyHrs: summary.doubleTime.toFixed(2),
+                rate: summary.dtRate.toFixed(2),
+                amount: summary.doubleTimePay.toFixed(2),
                 override: "N",
                 shiftType: "Semi",
                 weekStart: summary.weekStart,

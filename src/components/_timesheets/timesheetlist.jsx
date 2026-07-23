@@ -330,8 +330,10 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
                 semiTotals.totalHrs += s.totalHours;
                 semiTotals.ntHrs += s.normalTime;
                 semiTotals.otHrs += s.overTime;
+                semiTotals.dtHrs += s.doubleTime || 0;
                 semiTotals.ntPay += s.normalTimePay;
                 semiTotals.otPay += s.overTimePay;
+                semiTotals.dtPay += s.doubleTimePay || 0;
             });
         }
 

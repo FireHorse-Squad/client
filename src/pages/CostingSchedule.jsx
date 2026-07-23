@@ -230,6 +230,15 @@ if (summary.normalTime > 0) {
                 });
                 entry.OT.count += 1;
             }
+            if (summary.doubleTime > 0) {
+                const daysInWeek = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+                const perDay = summary.doubleTime / daysInWeek.length;
+                daysInWeek.forEach(d => {
+                    entry.DT[d] += perDay;
+                    entry.days.add(d);
+                });
+                entry.DT.count += 1;
+            }
         });
     };
 
