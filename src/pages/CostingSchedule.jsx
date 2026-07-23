@@ -195,6 +195,8 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
                     (r) =>
                         r.client_id?.toString().trim().toUpperCase() === summary.client_id?.toString().trim().toUpperCase()
                 );
+            const tsNumbersList = semiTsNumbersByGroup[groupKey] ? [...semiTsNumbersByGroup[groupKey]] : [];
+            const representativeTsNumber = tsNumbersList.length === 1 ? tsNumbersList[0] : (tsNumbersList[0] || "");
             if (!data[groupKey]) {
                 data[groupKey] = {
                     client_id: summary.client_id,
@@ -206,19 +208,11 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
                     OT: { count: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
                     DT: { count: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
                     days: new Set(),
-                    tsNumbersNT: new Set(),
-                    tsNumbersOT: new Set(),
-                    tsNumbersDT: new Set(),
+                    tsNumber: representativeTsNumber,
                 };
             }
             const entry = data[groupKey];
-            if (summary.normalTime > 0 && semiTsNumbersByGroup[groupKey]) {
-                semiTsNumbersByGroup[groupKey].forEach((num) => entry.tsNumbersNT.add(num));
-            }
-            if (summary.overTime > 0 && semiTsNumbersByGroup[groupKey]) {
-                semiTsNumbersByGroup[groupKey].forEach((num) => entry.tsNumbersOT.add(num));
-            }
-            if (summary.normalTime > 0) {
+if (summary.normalTime > 0) {
                 const daysInWeek = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
                 const perDay = summary.normalTime / daysInWeek.length;
                 daysInWeek.forEach(d => {
