@@ -136,45 +136,33 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
                 if (isAdHoc) normalTime = totalHours;
             }
 
-            const groupKey = `${timesheet.client_id}|${occupation}`;
+            const types = [];
+            if (normalTime > 0) types.push({ type: "NT", hours: normalTime });
+            if (overTimeHours > 0) types.push({ type: "OT", hours: overTimeHours });
+            if (doubleTimeHours > 0) types.push({ type: "DT", hours: doubleTimeHours });
 
-            if (!data[groupKey]) {
-                data[groupKey] = {
-                    client_id: timesheet.client_id,
-                    client_name: timesheet.client_name,
-                    occupation,
-                    rateInfo: matchedRate,
-                    hasAdHocNT: false,
-                    NT: { count: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
-                    OT: { count: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
-                    DT: { count: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
-                    days: new Set(),
-                    tsNumbersNT: new Set(),
-                    tsNumbersOT: new Set(),
-                    tsNumbersDT: new Set(),
-                };
-            }
-            const entry = data[groupKey];
-            entry.days.add(dayLower);
-            if (timesheet.timesheet_number) {
-                if (normalTime > 0) entry.tsNumbersNT.add(timesheet.timesheet_number);
-                if (overTimeHours > 0) entry.tsNumbersOT.add(timesheet.timesheet_number);
-                if (doubleTimeHours > 0) entry.tsNumbersDT.add(timesheet.timesheet_number);
-            }
-
-            if (normalTime > 0) {
-                entry.NT[dayLower] += normalTime;
-                entry.NT.count += 1;
-                if (isAdHoc) entry.hasAdHocNT = true;
-            }
-            if (overTimeHours > 0) {
-                entry.OT[dayLower] += overTimeHours;
-                entry.OT.count += 1;
-            }
-            if (doubleTimeHours > 0) {
-                entry.DT[dayLower] += doubleTimeHours;
-                entry.DT.count += 1;
-            }
+            types.forEach(({ type, hours }) => {
+                const groupKey = `${timesheet.timesheet_number || ""}|${timesheet.client_id || ""}|${occupation}|${type}`;
+                if (!data[groupKey]) {
+                    data[groupKey] = {
+                        client_id: timesheet.client_id,
+                        client_name: timesheet.client_name,
+                        occupation,
+                        rateInfo: matchedRate,
+                        hasAdHocNT: false,
+                        NT: { count: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
+                        OT: { count: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
+                        DT: { count: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
+                        days: new Set(),
+                        tsNumber: timesheet.timesheet_number,
+                    };
+                }
+                const entry = data[groupKey];
+                entry.days.add(dayLower);
+                entry[type][dayLower] += hours;
+                entry[type].count += 1;
+                if (type === "NT" && isAdHoc) entry.hasAdHocNT = true;
+            });
         });
     };
 
@@ -276,8 +264,7 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
                     rate = parseFloat(rateInfo.ot_2_0_rate) || 0;
                     invoiceRate = parseFloat(rateInfo.ot_2_0_invoice_rate) || 0;
                 }
-                const tsKey = type === "NT" ? "tsNumbersNT" : type === "OT" ? "tsNumbersOT" : "tsNumbersDT";
-                return { key, entry, type, rate, invoiceRate, timesheetNumbers: entry[tsKey] || new Set() };
+                return { key, entry, type, rate, invoiceRate, tsNumber: entry.tsNumber || "" };
             });
         })
         .sort((a, b) => {
@@ -825,13 +812,17 @@ export default function CostingSchedule() {
 
                                         return (
                                             <tr key={row.key + "-" + row.type} className={`${rowBg} transition-all duration-150`}>
-                                                <td style={{ width: "120px" }} className={`px-2 py-2 text-slate-800 font-bold shadow-[2px_0_5px_rgba(0,0,0,0.02)] ${isSmoke ? "bg-[#F9FAFC]" : "bg-white"} text-center`}>
-                                                    <div className="flex flex-wrap gap-x-1 gap-y-0 justify-center font-mono text-[12px] leading-tight">
-                                                        {[...(row.timesheetNumbers || [])].sort().map((num, i) => (
-                                                            <span key={i}>{num}</span>
-                                                        ))}
-                                                    </div>
-                                                </td>
+                                                 <td style={{ width: "120px" }} className={`px-2 py-2 text-slate-800 font-bold shadow-[2px_0_5px_rgba(0,0,0,0.02)] ${isSmoke ? "bg-[#F9FAFC]" : "bg-white"} text-center`}>
+                                                     {row.tsNumber ? (
+                                                         <span className="font-mono text-[12px]">{row.tsNumber}</span>
+                                                     ) : (
+                                                         <div className="flex flex-wrap gap-x-1 gap-y-0 justify-center font-mono text-[12px] leading-tight">
+                                                             {[...(row.timesheetNumbers || [])].sort().map((num, i) => (
+                                                                 <span key={i}>{num}</span>
+                                                             ))}
+                                                         </div>
+                                                     )}
+                                                 </td>
                                                 <td style={{ width: "200px" }} className={`px-3 py-2 text-slate-800 font-bold shadow-[2px_0_5px_rgba(0,0,0,0.02)] ${isSmoke ? "bg-[#F9FAFC]" : "bg-white"} flex flex-col gap-0.5`}>
                                                     <span className="text-[11px]">{getOccupationDisplay(row)}</span>
                                                     <span className="text-[9px] font-normal text-slate-900">[{row.type}]</span>

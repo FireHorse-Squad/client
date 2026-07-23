@@ -79,6 +79,8 @@ const calculateRow = (timesheet, clientRates, employees) => {
     let otPay = 0;
     let dtPay = 0;
 
+    const txCode = parseInt(timesheet.transaction_code, 10);
+
      if (timesheet.shift_type === 'Task') {
         totalHours = parseFloat(timesheet.units) || 0;
         ntHrs = totalHours;
@@ -91,10 +93,10 @@ const calculateRow = (timesheet, clientRates, employees) => {
         const lunchDeduction = (timesheet.actual_lunch_hours !== null && timesheet.actual_lunch_hours !== undefined && timesheet.actual_lunch_hours !== '') ? parseFloat(timesheet.actual_lunch_hours) : (parseFloat(rate?.deduct_lunch_hour) || 0);
         const netHours = biometricHours - lunchDeduction;
 
-        if (timesheet.transaction_code === '1921' || timesheet.transaction_code === '1922') {
+        if (txCode === 1921 || txCode === 1922) {
             dtHrs = netHours;
             dtPay = dtHrs * (parseFloat(rate?.ot_2_0_rate) || 0);
-        } else if (timesheet.transaction_code === '1920') {
+        } else if (txCode === 1920) {
             otHrs = netHours;
             otPay = otHrs * (parseFloat(rate?.ot_1_5_rate) || 0);
         } else {
@@ -123,12 +125,12 @@ const calculateRow = (timesheet, clientRates, employees) => {
             const ntRate = isAdHoc ? (parseFloat(rate?.sub_total_a) || 0) : (parseFloat(rate?.nt_hourly_rate) || 0);
             ntPay = netHours * ntRate;
         } else {
-            if (timesheet.transaction_code === '1921' || timesheet.transaction_code === '1922') {
+            if (txCode === 1921 || txCode === 1922) {
                 const lunchDeduction = timesheet.actual_lunch_hours !== null && timesheet.actual_lunch_hours !== undefined && timesheet.actual_lunch_hours !== '' ? parseFloat(timesheet.actual_lunch_hours) : (parseFloat(rate?.deduct_lunch_hour) || 0);
                 const netHours = totalHours - lunchDeduction;
                 dtHrs = netHours;
                 dtPay = dtHrs * (parseFloat(rate?.ot_2_0_rate) || 0);
-            } else if (timesheet.transaction_code === '1920') {
+            } else if (txCode === 1920) {
                 const lunchDeduction = timesheet.actual_lunch_hours !== null && timesheet.actual_lunch_hours !== undefined && timesheet.actual_lunch_hours !== '' ? parseFloat(timesheet.actual_lunch_hours) : (parseFloat(rate?.deduct_lunch_hour) || 0);
                 const netHours = totalHours - lunchDeduction;
                 otHrs = netHours;

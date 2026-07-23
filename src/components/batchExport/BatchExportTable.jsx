@@ -50,22 +50,22 @@ const BatchExportTable = ({ data, rowsPerPage = 20, clientId = null }) => {
     const paginatedData = sortedData.slice(startIndex, endIndex);
     const pageCount = Math.ceil(sortedData.length / rowsPerPage);
 
-    const exportToCSV = () => {
+const exportToCSV = () => {
         const rows = (safeData || []).map((row) => [
             String(row.co_number ?? ""),
             String(row.transactionCode ?? ""),
-            `\t${String(row.jobCode ?? "").padStart(2, "0")}`,
+            String(row.jobCode ?? ""),
             String(row.costCentre ?? ""),
             String(row.qtyHrs ?? ""),
             row.rate != null ? String(row.rate) : "",
             row.amount != null ? String(row.amount) : "",
             row.override ? String(row.override).toUpperCase() : "N",
         ]);
-
+ 
         const csvContent = rows.map((cols) => cols.join(",")).join("\n");
-
+ 
         if (!csvContent) return;
-
+ 
         const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
@@ -76,7 +76,6 @@ const BatchExportTable = ({ data, rowsPerPage = 20, clientId = null }) => {
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
     };
-
     return (
         <div className="w-full bg-white shadow-xl rounded-xl overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
