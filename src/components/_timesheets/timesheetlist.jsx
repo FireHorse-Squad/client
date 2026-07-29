@@ -2,9 +2,11 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import api from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
 import { onDataChange } from '../../utils/dataSync';
-import { Pencil, Trash2, CheckSquare, Square } from 'lucide-react';
+import { Pencil, Trash2, CheckSquare, Square, Archive, RotateCcw } from 'lucide-react';
 import BulkDeleteModal from '../common/BulkDeleteModal';
 import { calculateSemiWeeklySummary } from '../businesslogic/businesslogic';
+import Snackbar from '@mui/material/Snackbar';
+import Alert from '@mui/material/Alert';
 
 const ArrowBackIcon = () => (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -206,7 +208,6 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
     const [rawTimesheets, setRawTimesheets] = useState([]);
     const [clientRates, setClientRates] = useState([]);
     const [employees, setEmployees] = useState([]);
-    const [publicHolidays, setPublicHolidays] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
@@ -215,8 +216,14 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
     const [selectedIds, setSelectedIds] = useState([]);
     const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
     const [bulkDeleting, setBulkDeleting] = useState(false);
+    const [archiveOpen, setArchiveOpen] = useState(false);
+    const [archiving, setArchiving] = useState(false);
+    const [snackbarOpen, setSnackbarOpen] = useState(false);
+    const [snackbarMessage, setSnackbarMessage] = useState('');
+    const [snackbarSeverity, setSnackbarSeverity] = useState('success');
     const [selectedTsNo, setSelectedTsNo] = useState("");
     const [selectedEmpNo, setSelectedEmpNo] = useState("");
+    const [timesheetTab, setTimesheetTab] = useState('active');
 
     const fetchData = useCallback(async () => {
         try {
@@ -227,17 +234,9 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
                 api.get('/clientrates'),
                 api.get('/employees'),
             ]);
-            let holidays = [];
-            try {
-                const phRes = await api.get('/publicholidays');
-                holidays = phRes.data || [];
-            } catch {
-                holidays = [];
-            }
             setRawTimesheets(tsRes.data);
             setClientRates(crRes.data);
             setEmployees(empRes.data);
-            setPublicHolidays(holidays);
         } catch (err) {
             setError(err.response?.data?.message || err.message || 'Failed to fetch timesheets');
         } finally {
@@ -257,50 +256,59 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
         };
     }, [fetchData, refreshKey]);
 
-    const processedData = useMemo(() => {
-        const active = rawTimesheets.filter(ts => ts.status !== 'archived');
-        return active.map(ts => calculateRow(ts, clientRates, employees));
+    const activeData = useMemo(() => {
+        return rawTimesheets
+            .filter(ts => ts.status !== 'archived')
+            .map(ts => calculateRow(ts, clientRates, employees));
     }, [rawTimesheets, clientRates, employees]);
 
+    const archivedData = useMemo(() => {
+        return rawTimesheets
+            .filter(ts => ts.status === 'archived')
+            .map(ts => calculateRow(ts, clientRates, employees));
+    }, [rawTimesheets, clientRates, employees]);
+
+    const currentData = timesheetTab === 'active' ? activeData : archivedData;
+
     const tsNumberOptions = useMemo(() => {
-        const unique = [...new Set(processedData.map((r) => (r.timesheetNo || '').toString()).filter(Boolean))];
+        const unique = [...new Set(currentData.map((r) => (r.timesheetNo || '').toString()).filter(Boolean))];
         return unique.sort((a, b) => {
             const aNum = parseFloat(a);
             const bNum = parseFloat(b);
             if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
             return a.localeCompare(b);
         });
-    }, [processedData]);
+    }, [currentData]);
 
     const empNoOptions = useMemo(() => {
-        const unique = [...new Set(processedData.map((r) => (r.empNo || '').toString()).filter(Boolean))];
+        const unique = [...new Set(currentData.map((r) => (r.empNo || '').toString()).filter(Boolean))];
         return unique.sort((a, b) => {
             const aNum = parseFloat(a);
             const bNum = parseFloat(b);
             if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
             return a.localeCompare(b);
         });
-    }, [processedData]);
+    }, [currentData]);
 
-    const displayData = useMemo(() => {
+    const filteredData = useMemo(() => {
         const byTsNo = selectedTsNo
-            ? processedData.filter((r) => (r.timesheetNo || '').toString() === selectedTsNo)
-            : processedData;
+            ? currentData.filter((r) => (r.timesheetNo || '').toString() === selectedTsNo)
+            : currentData;
         const byEmpNo = selectedEmpNo
             ? byTsNo.filter((r) => (r.empNo || '').toString() === selectedEmpNo)
             : byTsNo;
         return byEmpNo;
-    }, [processedData, selectedTsNo, selectedEmpNo]);
+    }, [currentData, selectedTsNo, selectedEmpNo]);
 
     const paginatedData = useMemo(() => {
         const startIdx = page * rowsPerPage;
-        return displayData.slice(startIdx, startIdx + rowsPerPage);
-    }, [displayData, page, rowsPerPage]);
+        return filteredData.slice(startIdx, startIdx + rowsPerPage);
+    }, [filteredData, page, rowsPerPage]);
 
-    const totalPages = Math.ceil(displayData.length / rowsPerPage) || 1;
+    const totalPages = Math.ceil(filteredData.length / rowsPerPage) || 1;
 
-    const totals = useMemo(() => {
-        const nonSemi = displayData.filter((r) => r.shiftType !== 'Semi');
+    const { totals, semiTotals } = useMemo(() => {
+        const nonSemi = filteredData.filter((r) => r.shiftType !== 'Semi');
         const nonSemiTotals = nonSemi.reduce(
             (acc, row) => ({
                 totalHrs: acc.totalHrs + (row.totalHrs || 0),
@@ -314,18 +322,22 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
             { totalHrs: 0, ntHrs: 0, otHrs: 0, dtHrs: 0, ntPay: 0, otPay: 0, dtPay: 0 }
         );
 
-        let semiTotals = { totalHrs: 0, ntHrs: 0, otHrs: 0, dtHrs: 0, ntPay: 0, otPay: 0, dtPay: 0 };
-
         const filteredRaw = rawTimesheets.filter((ts) => {
-            if (ts.status === 'archived') return false;
-            if (ts.shift_type !== 'Semi') return false;
+            if (timesheetTab === 'active' && ts.status === 'archived') return false;
+            if (timesheetTab === 'archived' && ts.status !== 'archived') return false;
             if (selectedEmpNo && (ts.co_number || '').toString() !== selectedEmpNo) return false;
             if (selectedTsNo && (ts.timesheet_number || '').toString() !== selectedTsNo) return false;
             return true;
         });
 
-        if (filteredRaw.length > 0) {
-            const summaries = calculateSemiWeeklySummary(filteredRaw, clientRates, employees, publicHolidays);
+        const semiRaw = filteredRaw.filter((ts) => ts.shift_type === 'Semi');
+        const weeklyHoursSet = new Set(semiRaw.map(ts => ts.semi_weekly_hours).filter(Boolean));
+        const weeklyHours = weeklyHoursSet.size === 1 ? parseFloat([...weeklyHoursSet][0]) : 45;
+
+        let semiTotals = { totalHrs: 0, ntHrs: 0, otHrs: 0, dtHrs: 0, ntPay: 0, otPay: 0, dtPay: 0 };
+
+        if (semiRaw.length > 0) {
+            const summaries = calculateSemiWeeklySummary(semiRaw, clientRates, employees, [], weeklyHours);
             summaries.forEach((s) => {
                 semiTotals.totalHrs += s.totalHours;
                 semiTotals.ntHrs += s.normalTime;
@@ -338,15 +350,18 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
         }
 
         return {
-            totalHrs: nonSemiTotals.totalHrs + semiTotals.totalHrs,
-            ntHrs: nonSemiTotals.ntHrs + semiTotals.ntHrs,
-            otHrs: nonSemiTotals.otHrs + semiTotals.otHrs,
-            dtHrs: nonSemiTotals.dtHrs + semiTotals.dtHrs,
-            ntPay: nonSemiTotals.ntPay + semiTotals.ntPay,
-            otPay: nonSemiTotals.otPay + semiTotals.otPay,
-            dtPay: nonSemiTotals.dtPay + semiTotals.dtPay,
+            totals: {
+                totalHrs: nonSemiTotals.totalHrs + semiTotals.totalHrs,
+                ntHrs: nonSemiTotals.ntHrs + semiTotals.ntHrs,
+                otHrs: nonSemiTotals.otHrs + semiTotals.otHrs,
+                dtHrs: nonSemiTotals.dtHrs + semiTotals.dtHrs,
+                ntPay: nonSemiTotals.ntPay + semiTotals.ntPay,
+                otPay: nonSemiTotals.otPay + semiTotals.otPay,
+                dtPay: nonSemiTotals.dtPay + semiTotals.dtPay,
+            },
+            semiTotals
         };
-    }, [displayData, rawTimesheets, clientRates, employees, publicHolidays, selectedEmpNo, selectedTsNo]);
+    }, [filteredData, rawTimesheets, clientRates, employees, selectedEmpNo, selectedTsNo, timesheetTab]);
 
     const handlePageChange = (newPage) => {
         if (newPage >= 0 && newPage < totalPages) {
@@ -360,10 +375,10 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
     };
 
     const handleSelectAll = () => {
-        if (selectedIds.length === displayData.length && displayData.length > 0) {
+        if (selectedIds.length === filteredData.length && filteredData.length > 0) {
             setSelectedIds([]);
         } else {
-            setSelectedIds(displayData.map((row) => row.id));
+            setSelectedIds(filteredData.map((row) => row.id));
         }
     };
 
@@ -383,10 +398,87 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
         try {
             await onBulkDelete(selectedIds);
             setSelectedIds([]);
+            setSnackbarMessage('Timesheets deleted successfully');
+            setSnackbarSeverity('success');
+            setSnackbarOpen(true);
         } finally {
             setBulkDeleting(false);
             setBulkDeleteOpen(false);
         }
+    };
+
+    const handleArchiveClick = () => {
+        setArchiveOpen(true);
+    };
+
+    const handleArchiveConfirm = async () => {
+        if (selectedIds.length === 0) return;
+        setArchiving(true);
+        try {
+            await Promise.all(selectedIds.map(id => api.put(`/timesheets/${id}`, { status: 'archived' })));
+            setSelectedIds([]);
+            fetchData();
+            setArchiveOpen(false);
+            setSnackbarMessage('Timesheets archived successfully');
+            setSnackbarSeverity('success');
+            setSnackbarOpen(true);
+        } catch (err) {
+            setSnackbarMessage(err.response?.data?.message || err.message || 'Failed to archive timesheets');
+            setSnackbarSeverity('error');
+            setSnackbarOpen(true);
+        } finally {
+            setArchiving(false);
+        }
+    };
+
+    const handleUnarchive = async (id) => {
+        try {
+            await api.put(`/timesheets/${id}`, { status: 'active' });
+            fetchData();
+            setSnackbarMessage('Timesheet restored successfully');
+            setSnackbarSeverity('success');
+            setSnackbarOpen(true);
+        } catch (err) {
+            setSnackbarMessage(err.response?.data?.message || err.message || 'Failed to restore timesheet');
+            setSnackbarSeverity('error');
+            setSnackbarOpen(true);
+        }
+    };
+
+    const handleDelete = async (id) => {
+        if (!window.confirm('Are you sure you want to permanently delete this timesheet?')) return;
+        try {
+            await api.delete(`/timesheets/${id}`);
+            fetchData();
+            setSelectedIds(prev => prev.filter(i => i !== id));
+            setSnackbarMessage('Timesheet deleted successfully');
+            setSnackbarSeverity('success');
+            setSnackbarOpen(true);
+        } catch (err) {
+            setSnackbarMessage(err.response?.data?.message || err.message || 'Failed to delete timesheet');
+            setSnackbarSeverity('error');
+            setSnackbarOpen(true);
+        }
+    };
+
+    const handleBulkUnarchive = async () => {
+        if (!window.confirm(`Restore ${selectedIds.length} timesheets to active?`)) return;
+        try {
+            await Promise.all(selectedIds.map(id => api.put(`/timesheets/${id}`, { status: 'active' })));
+            setSelectedIds([]);
+            fetchData();
+            setSnackbarMessage(`${selectedIds.length} timesheets restored successfully`);
+            setSnackbarSeverity('success');
+            setSnackbarOpen(true);
+        } catch (err) {
+            setSnackbarMessage(err.response?.data?.message || err.message || 'Failed to restore timesheets');
+            setSnackbarSeverity('error');
+            setSnackbarOpen(true);
+        }
+    };
+
+    const handleSnackbarClose = () => {
+        setSnackbarOpen(false);
     };
 
     if (loading) {
@@ -409,13 +501,36 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
     return (
 
         <div className="w-full flex flex-col bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex flex-col gap-4">
+                <div className="flex items-center gap-6">
+                    <button
+                        onClick={() => { setTimesheetTab('active'); setPage(0); setSelectedTsNo(''); setSelectedEmpNo(''); }}
+                        className={`pb-2 text-sm font-semibold transition ${
+                            timesheetTab === 'active'
+                                ? "border-b-4 border-[#1742c4] text-[#1742c4]"
+                                : "text-slate-400 hover:text-slate-600"
+                        }`}
+                    >
+                        Active Timesheets
+                    </button>
+                    <button
+                        onClick={() => { setTimesheetTab('archived'); setPage(0); setSelectedTsNo(''); setSelectedEmpNo(''); }}
+                        className={`pb-2 text-sm font-semibold transition ${
+                            timesheetTab === 'archived'
+                                ? "border-b-4 border-[#1742c4] text-[#1742c4]"
+                                : "text-slate-400 hover:text-slate-600"
+                        }`}
+                    >
+                        Archived Timesheets
+                    </button>
+                </div>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
                     <h1 className="text-xl sm:text-1xl font-bold text-slate-800 flex items-center">
                         Capture Timesheet
                     </h1>
                     <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                        {displayData.length} active timesheet entries
+                        {filteredData.length} {timesheetTab === 'active' ? 'active' : 'archived'} timesheet entries
                     </p>
                 </div>
                 <div className="flex items-center gap-4">
@@ -457,18 +572,49 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
                     </div>
                 </div>
             </div>
+            </div>
             {selectedIds.length > 0 && (
                 <div className="bg-red-50 border-b border-red-200 px-6 py-3 flex items-center justify-between">
                     <span className="text-sm font-semibold text-red-700">
                         {selectedIds.length} timesheet{selectedIds.length > 1 ? "s" : ""} selected
                     </span>
-                    <button
-                        onClick={handleBulkDeleteClick}
-                        className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white text-sm font-bold rounded-lg hover:bg-red-700 transition-colors shadow-sm"
-                    >
-                        <Trash2 className="w-4 h-4" />
-                        Delete Selected
-                    </button>
+                    <div className="flex items-center gap-3">
+                        {timesheetTab === 'active' ? (
+                            <>
+                                <button
+                                    onClick={handleArchiveClick}
+                                    className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white text-sm font-bold rounded-lg hover:bg-amber-600 transition-colors shadow-sm"
+                                >
+                                    <Archive className="w-4 h-4" />
+                                    Archive Selected
+                                </button>
+                                <button
+                                    onClick={handleBulkDeleteClick}
+                                    className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white text-sm font-bold rounded-lg hover:bg-red-700 transition-colors shadow-sm"
+                                >
+                                    <Trash2 className="w-4 h-4" />
+                                    Delete Selected
+                                </button>
+                            </>
+                        ) : (
+                            <>
+                                <button
+                                    onClick={handleBulkUnarchive}
+                                    className="flex items-center gap-2 px-4 py-2 bg-green-100 text-green-700 text-sm font-bold rounded-lg hover:bg-green-200 transition-colors shadow-sm"
+                                >
+                                    <RotateCcw className="w-4 h-4" />
+                                    Restore Selected
+                                </button>
+                                <button
+                                    onClick={handleBulkDeleteClick}
+                                    className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white text-sm font-bold rounded-lg hover:bg-red-700 transition-colors shadow-sm"
+                                >
+                                    <Trash2 className="w-4 h-4" />
+                                    Delete Selected
+                                </button>
+                            </>
+                        )}
+                    </div>
                 </div>
             )}
             <div className="flex-1 overflow-auto max-h-[58vh] relative bg-slate-50 border-b border-slate-200">
@@ -482,9 +628,9 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
                                 <button
                                     onClick={handleSelectAll}
                                     className="hover:opacity-80 transition"
-                                    title={selectedIds.length === displayData.length && displayData.length > 0 ? "Deselect All" : "Select All Timesheets"}
+                                    title={selectedIds.length === filteredData.length && filteredData.length > 0 ? "Deselect All" : "Select All Timesheets"}
                                 >
-                                    {selectedIds.length === displayData.length && displayData.length > 0 ? (
+                                    {selectedIds.length === filteredData.length && filteredData.length > 0 ? (
                                         <CheckSquare className="w-4 h-4 text-white" />
                                     ) : (
                                         <Square className="w-4 h-4 text-white/70" />
@@ -556,20 +702,41 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
                                                         className="px-4 py-3 text-xs border-r border-slate-200/60 text-center"
                                                     >
                                                         <div className="flex items-center justify-center gap-3">
-                                                            <button
-                                                                onClick={() => onEdit?.(row)}
-                                                                className="text-blue-600 hover:text-blue-800 transition-colors"
-                                                                title="Edit"
-                                                            >
-                                                                <Pencil className="w-4 h-4" />
-                                                            </button>
-                                                            <button
-                                                                onClick={() => onDelete?.(row)}
-                                                                className="text-red-500 hover:text-red-700 transition-colors"
-                                                                title="Delete"
-                                                            >
-                                                                <Trash2 className="w-4 h-4" />
-                                                            </button>
+                                                            {timesheetTab === 'active' ? (
+                                                                <>
+                                                                    <button
+                                                                        onClick={() => onEdit?.(row)}
+                                                                        className="text-blue-600 hover:text-blue-800 transition-colors"
+                                                                        title="Edit"
+                                                                    >
+                                                                        <Pencil className="w-4 h-4" />
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => onDelete?.(row)}
+                                                                        className="text-red-500 hover:text-red-700 transition-colors"
+                                                                        title="Delete"
+                                                                    >
+                                                                        <Trash2 className="w-4 h-4" />
+                                                                    </button>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <button
+                                                                        onClick={() => handleUnarchive(row.id)}
+                                                                        className="text-green-600 hover:text-green-800 transition-colors"
+                                                                        title="Restore to Active"
+                                                                    >
+                                                                        <RotateCcw className="w-4 h-4" />
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => handleDelete(row.id)}
+                                                                        className="text-red-500 hover:text-red-700 transition-colors"
+                                                                        title="Delete Permanently"
+                                                                    >
+                                                                        <Trash2 className="w-4 h-4" />
+                                                                    </button>
+                                                                </>
+                                                            )}
                                                         </div>
                                                     </td>
                                                 );
@@ -591,6 +758,8 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
                                                                 <span className="text-slate-400 mr-0.5 text-[10px]">R</span>
                                                                 {cellVal.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                             </span>
+                                                        ) : column.id === 'ntHrs' && row.shiftType === 'Semi' && cellVal >= 45 ? (
+                                                            <span className="text-red-600 font-semibold">{cellVal.toFixed(2)}</span>
                                                         ) : (
                                                             cellVal.toFixed(2)
                                                         )
@@ -629,7 +798,7 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
                                 {totals.totalHrs.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
                             </td>
                             <td className="px-4 py-3 text-xs font-mono text-right border-r border-indigo-100 text-indigo-900">
-                                {totals.ntHrs.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
+                                <span className={semiTotals.ntHrs >= 45 ? 'text-red-600 font-semibold' : ''}>{totals.ntHrs.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}</span>
                             </td>
                             <td className="px-4 py-3 text-xs font-mono text-right border-r border-indigo-100 text-indigo-900">
                                 {totals.otHrs.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
@@ -696,11 +865,11 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
                 </div> */}
             <div className="px-6 py-4 bg-white border-t border-slate-200 flex flex-col md:flex-row justify-between items-center gap-4 text-xs sm:text-sm text-[#2D328F] select-none">
                 <div className="text-center md:text-left">
-                    Showing <strong className="text-[#2D328F]">{Math.min(displayData.length, page * rowsPerPage + 1)}</strong> to{' '}
+                    Showing <strong className="text-[#2D328F]">{Math.min(filteredData.length, page * rowsPerPage + 1)}</strong> to{' '}
                     <strong className="text-[#2D328F]">
-                        {Math.min(displayData.length, (page + 1) * rowsPerPage)}
+                        {Math.min(filteredData.length, (page + 1) * rowsPerPage)}
                     </strong> of{' '}
-                    <strong className="text-[#2D328F]">{displayData.length}</strong> timesheets
+                    <strong className="text-[#2D328F]">{filteredData.length}</strong> timesheets
                 </div>
                 <div className="flex flex-wrap items-center justify-center gap-6">
                     <div className="flex items-center gap-2">
@@ -793,6 +962,55 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
                 selectedCount={selectedIds.length}
                 itemName="timesheets"
             />
+            {archiveOpen && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden">
+                        <div className="p-6 text-center">
+                            <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4 text-amber-600">
+                                <Archive size={32} />
+                            </div>
+                            <h3 className="text-xl font-bold text-slate-800 mb-2">
+                                Archive Selected Timesheets?
+                            </h3>
+                            <p className="text-slate-500">
+                                You are about to archive <strong>{selectedIds.length}</strong> timesheet{selectedIds.length > 1 ? "s" : ""}.
+                                This action can be reversed.
+                            </p>
+                        </div>
+                        <div className="flex gap-3 p-6 pt-0">
+                            <button
+                                onClick={() => setArchiveOpen(false)}
+                                disabled={archiving}
+                                className="flex-1 py-2 text-slate-600 font-semibold hover:bg-slate-100 rounded-lg transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleArchiveConfirm}
+                                disabled={archiving}
+                                className="flex-1 py-2 bg-amber-500 text-white font-semibold rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-50"
+                            >
+                                {archiving ? 'Archiving...' : `Archive ${selectedIds.length} Timesheet${selectedIds.length > 1 ? "s" : ""}`}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            <Snackbar
+                open={snackbarOpen}
+                autoHideDuration={5000}
+                onClose={handleSnackbarClose}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            >
+                <Alert
+                    onClose={handleSnackbarClose}
+                    severity={snackbarSeverity}
+                    variant="filled"
+                    sx={{ width: '100%' }}
+                >
+                    {snackbarMessage}
+                </Alert>
+            </Snackbar>
         </div>
     );
 }

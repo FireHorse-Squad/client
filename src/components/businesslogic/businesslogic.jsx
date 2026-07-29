@@ -67,7 +67,7 @@ const isPublicHoliday = (dateStr, publicHolidays) => {
     return publicHolidays.some((ph) => ph === dateStr);
 };
 
-export const calculateSemiWeeklySummary = (semiTimesheets, clientRates, employees, publicHolidays = []) => {
+export const calculateSemiWeeklySummary = (semiTimesheets, clientRates, employees, publicHolidays = [], weeklyHours = 45) => {
     const groups = {};
 
     const getLunch = (ts, rate) => {
@@ -143,10 +143,10 @@ export const calculateSemiWeeklySummary = (semiTimesheets, clientRates, employee
             } else if (txCode === 1920) {
                 overTime = g.totalNetHours;
             } else {
-                if (g.hasPublicHoliday && g.totalNetHours > 45) {
+                if (g.hasPublicHoliday && g.totalNetHours > weeklyHours) {
                     normalTime = g.totalNetHours;
                 } else {
-                    normalTime = Math.min(g.totalNetHours, 45);
+                    normalTime = Math.min(g.totalNetHours, weeklyHours);
                     overTime = Math.max(0, g.totalNetHours - 45);
                 }
             }

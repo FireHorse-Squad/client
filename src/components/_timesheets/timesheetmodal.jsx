@@ -36,6 +36,7 @@ const initialFormData = {
     client_id: "",
     actual_lunch_hours: "",
     isDoubleShift: false,
+    semi_weekly_hours: "",
 };
 
 const TimesheetModal = ({ isOpen, onClose, onSave, editData, onDelete }) => {
@@ -146,6 +147,8 @@ const TimesheetModal = ({ isOpen, onClose, onSave, editData, onDelete }) => {
             setSelectedOccupation(value);
         } else if (name === "isDoubleShift") {
             setFormData({ ...formData, [name]: e.target.checked });
+        } else if (name === "semi_weekly_hours") {
+            setFormData({ ...formData, [name]: value });
         } else {
             setFormData({ ...formData, [name]: value });
         }
@@ -256,6 +259,7 @@ const TimesheetModal = ({ isOpen, onClose, onSave, editData, onDelete }) => {
             client_id: data.client_id || data.clientId || "",
             actual_lunch_hours: data.actual_lunch_hours != null ? String(data.actual_lunch_hours) : "",
             isDoubleShift: data.isDoubleShift || false,
+            semi_weekly_hours: data.semi_weekly_hours || "",
         };
         setFormData(mapped);
         setClientSearch(mapped.client_id ? `${mapped.client_id} - ${mapped.client_name}` : "");
@@ -370,6 +374,7 @@ const TimesheetModal = ({ isOpen, onClose, onSave, editData, onDelete }) => {
                 total_hours: formData.total_hours ? parseFloat(formData.total_hours) : null,
                 actual_lunch_hours: formData.actual_lunch_hours ? parseFloat(formData.actual_lunch_hours) : null,
                 isDoubleShift: formData.isDoubleShift || false,
+                semi_weekly_hours: formData.semi_weekly_hours ? parseFloat(formData.semi_weekly_hours) : null,
                 status: 'active',
             };
 
@@ -388,8 +393,9 @@ const TimesheetModal = ({ isOpen, onClose, onSave, editData, onDelete }) => {
                 const preservedOccupation = formData.occupation;
                 const preservedTransactionCode = formData.transaction_code;
                 const preservedShiftType = formData.shift_type;
+                const preservedSemiWeeklyHours = formData.semi_weekly_hours;
 
-                setFormData((prev) => ({
+                setFormData({
                     ...initialFormData,
                     timesheet_number: preservedTimesheetNumber,
                     timesheet_date: preservedTimesheetDate,
@@ -398,7 +404,8 @@ const TimesheetModal = ({ isOpen, onClose, onSave, editData, onDelete }) => {
                     occupation: preservedOccupation,
                     transaction_code: preservedTransactionCode,
                     shift_type: preservedShiftType,
-                }));
+                    semi_weekly_hours: preservedSemiWeeklyHours,
+                });
                 setClientSearch(preservedClientId ? `${preservedClientId} - ${preservedClientName}` : "");
                 setShowIdleState(true);
                 setShowErrorState(false);
@@ -619,6 +626,26 @@ const TimesheetModal = ({ isOpen, onClose, onSave, editData, onDelete }) => {
                                     <option value="Ad-Hoc">Ad-Hoc</option>
                                 </select>
                             </div>
+                            {formData.shift_type === "Semi" && (
+                                <div className="flex flex-col">
+                                    <label className="block text-[10px] font-bold text-blue-600 uppercase mb-1">Weekly Hours</label>
+                                    <div className="flex items-center gap-4">
+                                        {["38.75", "40", "45"].map((hours) => (
+                                            <label key={hours} className="flex items-center gap-2 cursor-pointer">
+                                                <input
+                                                    type="radio"
+                                                    name="semi_weekly_hours"
+                                                    value={hours}
+                                                    checked={formData.semi_weekly_hours === hours}
+                                                    onChange={(e) => setFormData({ ...formData, semi_weekly_hours: e.target.value })}
+                                                    className="h-4 w-4 text-[#1742c4] border-slate-300 focus:ring-[#1742c4]"
+                                                />
+                                                <span className="text-xs text-slate-700">{hours} hrs</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         <div className="bg-blue-50/50 p-4 rounded-lg border border-blue-100 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4 mb-2">
