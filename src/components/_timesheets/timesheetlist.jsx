@@ -158,7 +158,7 @@ const calculateRow = (timesheet, clientRates, employees) => {
     return {
         id: timesheet.id,
         timesheetNo: timesheet.timesheet_number || '',
-        date: timesheet.timesheet_date || '',
+        date: (timesheet.timesheet_date || '').toString().split(/[T\s]/)[0],
         clientId: timesheet.client_id || '',
         clientName: timesheet.client_name || '',
         empNo: timesheet.co_number || '',
