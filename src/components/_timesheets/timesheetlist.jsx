@@ -223,6 +223,9 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
     const [snackbarSeverity, setSnackbarSeverity] = useState('success');
     const [selectedTsNo, setSelectedTsNo] = useState("");
     const [selectedEmpNo, setSelectedEmpNo] = useState("");
+    const [selectedClientId, setSelectedClientId] = useState("");
+    const [selectedClientName, setSelectedClientName] = useState("");
+    const [selectedUnknownsOnly, setSelectedUnknownsOnly] = useState(false);
     const [timesheetTab, setTimesheetTab] = useState('active');
 
     const fetchData = useCallback(async () => {
@@ -290,6 +293,21 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
         });
     }, [currentData]);
 
+    const clientIdOptions = useMemo(() => {
+        const unique = [...new Set(currentData.map((r) => (r.clientId || '').toString()).filter(Boolean))];
+        return unique.sort((a, b) => {
+            const aNum = parseFloat(a);
+            const bNum = parseFloat(b);
+            if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
+            return a.localeCompare(b);
+        });
+    }, [currentData]);
+
+    const clientNameOptions = useMemo(() => {
+        const unique = [...new Set(currentData.map((r) => (r.clientName || '').toString()).filter(Boolean))];
+        return unique.sort((a, b) => a.localeCompare(b));
+    }, [currentData]);
+
     const filteredData = useMemo(() => {
         const byTsNo = selectedTsNo
             ? currentData.filter((r) => (r.timesheetNo || '').toString() === selectedTsNo)
@@ -297,8 +315,17 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
         const byEmpNo = selectedEmpNo
             ? byTsNo.filter((r) => (r.empNo || '').toString() === selectedEmpNo)
             : byTsNo;
-        return byEmpNo;
-    }, [currentData, selectedTsNo, selectedEmpNo]);
+        const byClientId = selectedClientId
+            ? byEmpNo.filter((r) => (r.clientId || '').toString() === selectedClientId)
+            : byEmpNo;
+        const byClientName = selectedClientName
+            ? byClientId.filter((r) => (r.clientName || '').toString() === selectedClientName)
+            : byClientId;
+        const unknownsOnly = selectedUnknownsOnly
+            ? byClientName.filter((r) => r.employeeName === 'Unknown')
+            : byClientName;
+        return unknownsOnly;
+    }, [currentData, selectedTsNo, selectedEmpNo, selectedClientId, selectedClientName, selectedUnknownsOnly]);
 
     const paginatedData = useMemo(() => {
         const startIdx = page * rowsPerPage;
@@ -327,6 +354,9 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
             if (timesheetTab === 'archived' && ts.status !== 'archived') return false;
             if (selectedEmpNo && (ts.co_number || '').toString() !== selectedEmpNo) return false;
             if (selectedTsNo && (ts.timesheet_number || '').toString() !== selectedTsNo) return false;
+            if (selectedClientId && (ts.client_id || '').toString() !== selectedClientId) return false;
+            if (selectedClientName && (ts.client_name || '').toString() !== selectedClientName) return false;
+            if (selectedUnknownsOnly && employees.some(emp => emp.co_number?.toString().trim() === ts.co_number?.toString().trim())) return false;
             return true;
         });
 
@@ -361,7 +391,7 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
             },
             semiTotals
         };
-    }, [filteredData, rawTimesheets, clientRates, employees, selectedEmpNo, selectedTsNo, timesheetTab]);
+    }, [filteredData, rawTimesheets, clientRates, employees, selectedEmpNo, selectedTsNo, selectedClientId, selectedClientName, selectedUnknownsOnly, timesheetTab]);
 
     const handlePageChange = (newPage) => {
         if (newPage >= 0 && newPage < totalPages) {
@@ -501,10 +531,10 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
     return (
 
         <div className="w-full flex flex-col bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex flex-col gap-4">
+            <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex flex-col gap-4 overflow-visible relative z-50">
                 <div className="flex items-center gap-6">
                     <button
-                        onClick={() => { setTimesheetTab('active'); setPage(0); setSelectedTsNo(''); setSelectedEmpNo(''); }}
+                        onClick={() => { setTimesheetTab('active'); setPage(0); setSelectedTsNo(''); setSelectedEmpNo(''); setSelectedClientId(''); setSelectedClientName(''); setSelectedUnknownsOnly(false); }}
                         className={`pb-2 text-sm font-semibold transition ${
                             timesheetTab === 'active'
                                 ? "border-b-4 border-[#1742c4] text-[#1742c4]"
@@ -514,7 +544,7 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
                         Active Timesheets
                     </button>
                     <button
-                        onClick={() => { setTimesheetTab('archived'); setPage(0); setSelectedTsNo(''); setSelectedEmpNo(''); }}
+                        onClick={() => { setTimesheetTab('archived'); setPage(0); setSelectedTsNo(''); setSelectedEmpNo(''); setSelectedClientId(''); setSelectedClientName(''); setSelectedUnknownsOnly(false); }}
                         className={`pb-2 text-sm font-semibold transition ${
                             timesheetTab === 'archived'
                                 ? "border-b-4 border-[#1742c4] text-[#1742c4]"
@@ -533,34 +563,43 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
                         {filteredData.length} {timesheetTab === 'active' ? 'active' : 'archived'} timesheet entries
                     </p>
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex flex-wrap items-center gap-3 pb-4">
+                    {[
+                        { key: 'tsNo', label: 'Timesheet No:', options: tsNumberOptions, value: selectedTsNo, set: setSelectedTsNo },
+                        { key: 'clientId', label: 'Client ID:', options: clientIdOptions, value: selectedClientId, set: setSelectedClientId },
+                        { key: 'clientName', label: 'Client Name:', options: clientNameOptions, value: selectedClientName, set: setSelectedClientName },
+                    ].map(({ key, label, options, value, set: setValue }) => (
+                        <div key={key} className="flex items-center gap-2">
+                            <label className="text-xs text-slate-500 font-medium whitespace-nowrap">{label}</label>
+                            <select
+                                value={value}
+                                onChange={(e) => { setValue(e.target.value); setPage(0); }}
+                                className="w-[120px] px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1742c4] bg-white relative z-50"
+                            >
+                                <option value="">All</option>
+                                {options.map((opt) => (
+                                    <option key={opt} value={opt}>
+                                        {opt}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    ))}
                     <div className="flex items-center gap-2">
-                        <label className="text-xs text-slate-500 font-medium">Filter by Timesheet No:</label>
-                        <select
-                            value={selectedTsNo}
-                            onChange={(e) => {
-                                setSelectedTsNo(e.target.value);
-                                setPage(0);
-                            }}
-                            className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1742c4] bg-white"
-                        >
-                            <option value="">All</option>
-                            {tsNumberOptions.map((num) => (
-                                <option key={num} value={num}>
-                                    {num}
-                                </option>
-                            ))}
-                        </select>
+                        <label className="text-xs text-slate-500 font-medium whitespace-nowrap">Unknown Employees:</label>
+                        <input
+                            type="checkbox"
+                            checked={selectedUnknownsOnly}
+                            onChange={(e) => { setSelectedUnknownsOnly(e.target.checked); setPage(0); }}
+                            className="w-4 h-4 text-[#1742c4] border-slate-300 rounded focus:ring-[#1742c4]"
+                        />
                     </div>
                     <div className="flex items-center gap-2">
-                        <label className="text-xs text-slate-500 font-medium">Filter by Employee No:</label>
+                        <label className="text-xs text-slate-500 font-medium whitespace-nowrap">Emp No:</label>
                         <select
                             value={selectedEmpNo}
-                            onChange={(e) => {
-                                setSelectedEmpNo(e.target.value);
-                                setPage(0);
-                            }}
-                            className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1742c4] bg-white"
+                            onChange={(e) => { setSelectedEmpNo(e.target.value); setPage(0); }}
+                            className="w-[120px] px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1742c4] bg-white relative z-50"
                         >
                             <option value="">All</option>
                             {empNoOptions.map((num) => (
@@ -758,11 +797,11 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
                                                                 <span className="text-slate-400 mr-0.5 text-[10px]">R</span>
                                                                 {cellVal.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                             </span>
-                                                        ) : column.id === 'ntHrs' && row.shiftType === 'Semi' && cellVal >= 45 ? (
-                                                            <span className="text-red-600 font-semibold">{cellVal.toFixed(2)}</span>
-                                                        ) : (
-                                                            cellVal.toFixed(2)
-                                                        )
+                                                          ) : column.id === 'ntHrs' && row.shiftType === 'Semi' && cellVal >= 45 ? (
+                                                              <span className="text-red-600 font-semibold">{cellVal.toFixed(2)}</span>
+                                                          ) : (
+                                                              cellVal.toFixed(2)
+                                                          )
                                                     ) : (
                                                         cellVal
                                                     )}

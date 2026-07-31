@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import TimesheetList from "../components/_timesheets/timesheetlist";
 import TimesheetModal from "../components/_timesheets/timesheetmodal";
-import { Upload, FileSpreadsheet, Fingerprint, Plus, Pencil, Trash2 } from 'lucide-react';
+import { Upload, FileSpreadsheet, Fingerprint, Plus, Pencil, Trash2, Download } from 'lucide-react';
 import api from '../utils/api';
 import { dispatchDataChange } from '../utils/dataSync';
 import Dialog from '@mui/material/Dialog';
@@ -113,6 +113,26 @@ export default function Timesheets() {
         }
     };
 
+    const handleExport = async () => {
+        try {
+            const res = await api.get('/timesheets/export', { responseType: 'blob' });
+            const url = window.URL.createObjectURL(new Blob([res.data], { type: 'text/csv' }));
+            const link = document.createElement('a');
+            link.href = url;
+            const date = new Date().toISOString().split('T')[0];
+            link.setAttribute('download', `timesheets_${date}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            link.parentNode.removeChild(link);
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            let text = 'Export failed';
+            if (err?.response?.status) text = `Export failed (HTTP ${err.response.status})`;
+            else if (err?.request) text = 'Export failed: no response from server';
+            setImportMsg({ type: 'error', text });
+        }
+    };
+
     return (
         <div className="space-y-8 animate-in fade-in duration-200">
             <div className="bg-white rounded-2xl border border-slate-200/80 p-4 sm:p-6 md:p-8 mt-2.5">
@@ -147,6 +167,14 @@ export default function Timesheets() {
                             <span>{importing && importType === 'biometric' ? 'Importing...' : 'Import Biometrics'}</span>
                         </button>
                         <input ref={bioInputRef} type="file" accept=".csv" className="hidden" onChange={handleBiometricsImport} />
+                        <button
+                            onClick={handleExport}
+                            disabled={importing}
+                            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 bg-sky-50 text-sky-700 hover:bg-sky-100/80 active:scale-[0.98] border border-sky-200/80 hover:border-sky-300 shadow-xs disabled:opacity-50"
+                        >
+                            <Download className="w-4 h-4 text-sky-600" strokeWidth={2.2} />
+                            <span>Export to Excel</span>
+                        </button>
                         <button
                             onClick={() => { setEditingRow(null); setIsModalOpen(true); }}
                             className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 bg-amber-500 text-white hover:bg-amber-600 active:scale-[0.98] border border-amber-600/10 shadow-sm hover:shadow-md"
