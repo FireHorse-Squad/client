@@ -203,7 +203,7 @@ const COLUMNS = [
     { id: 'actions', label: 'ACTIONS', minWidth: 90, align: 'center' },
 ];
 
-export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDelete }) {
+export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDelete, onExportData }) {
     const { user: _user } = useAuth();
     const [rawTimesheets, setRawTimesheets] = useState([]);
     const [clientRates, setClientRates] = useState([]);
@@ -326,6 +326,12 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
             : byClientName;
         return unknownsOnly;
     }, [currentData, selectedTsNo, selectedEmpNo, selectedClientId, selectedClientName, selectedUnknownsOnly]);
+
+    useEffect(() => {
+        if (onExportData) {
+            onExportData(filteredData);
+        }
+    }, [filteredData, onExportData]);
 
     const paginatedData = useMemo(() => {
         const startIdx = page * rowsPerPage;

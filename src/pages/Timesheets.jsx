@@ -10,6 +10,7 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogContentText from '@mui/material/DialogContentText';
 import DialogActions from '@mui/material/DialogActions';
 import Button from '@mui/material/Button';
+import * as XLSX from 'xlsx';
 
 export default function Timesheets() {
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -20,6 +21,7 @@ export default function Timesheets() {
     const [refreshKey, setRefreshKey] = useState(0);
     const [deleteTarget, setDeleteTarget] = useState(null);
     const [deleting, setDeleting] = useState(false);
+    const [exportData, setExportData] = useState([]);
     const csvInputRef = useRef(null);
     const bioInputRef = useRef(null);
 
@@ -113,23 +115,53 @@ export default function Timesheets() {
         }
     };
 
-    const handleExport = async () => {
+    const handleExport = () => {
         try {
-            const res = await api.get('/timesheets/export', { responseType: 'blob' });
-            const url = window.URL.createObjectURL(new Blob([res.data], { type: 'text/csv' }));
-            const link = document.createElement('a');
-            link.href = url;
+            if (!exportData || exportData.length === 0) {
+                setImportMsg({ type: 'error', text: 'No data available to export' });
+                return;
+            }
+
+            const headers = [
+                'TIMESHEET NO', 'DATE', 'CLIENT ID', 'CLIENT NAME', 'EMP NO',
+                'EMPLOYEE NAME', 'TX CODE', 'SHIFT TYPE', 'OCCUPATION',
+                'START', 'END', 'TOTAL HRS', 'NT HRS', 'OT HRS', 'DT HRS',
+                'NT PAY(R)', 'OT PAY(R)', 'DT PAY(R)'
+            ];
+
+            const rows = exportData.map((row) => [
+                row.timesheetNo || '',
+                row.date || '',
+                row.clientId || '',
+                row.clientName || '',
+                row.empNo || '',
+                row.employeeName || '',
+                row.txCode || '',
+                row.shiftType || '',
+                row.occupation || '',
+                row.start || '',
+                row.end || '',
+                row.totalHrs || 0,
+                row.ntHrs || 0,
+                row.otHrs || 0,
+                row.dtHrs || 0,
+                row.ntPay || 0,
+                row.otPay || 0,
+                row.dtPay || 0,
+            ]);
+
+            const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+            ws['!cols'] = headers.map(() => ({ wch: 18 }));
+
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Timesheets');
+
             const date = new Date().toISOString().split('T')[0];
-            link.setAttribute('download', `timesheets_${date}.csv`);
-            document.body.appendChild(link);
-            link.click();
-            link.parentNode.removeChild(link);
-            window.URL.revokeObjectURL(url);
+            XLSX.writeFile(wb, `timesheets_${date}.xlsx`);
+
+            setImportMsg({ type: 'success', text: `Exported ${exportData.length} timesheet entries` });
         } catch (err) {
-            let text = 'Export failed';
-            if (err?.response?.status) text = `Export failed (HTTP ${err.response.status})`;
-            else if (err?.request) text = 'Export failed: no response from server';
-            setImportMsg({ type: 'error', text });
+            setImportMsg({ type: 'error', text: err.message || 'Export failed' });
         }
     };
 
@@ -196,6 +228,7 @@ export default function Timesheets() {
                     onEdit={handleEdit}
                     onDelete={handleDeleteClick}
                     onBulkDelete={handleBulkDelete}
+                    onExportData={setExportData}
                 />
             </div>
             <TimesheetModal
