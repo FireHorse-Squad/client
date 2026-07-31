@@ -6,7 +6,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'https://server-one-amber.vercel.app',
+        target: 'http://localhost:3000',
         changeOrigin: true,
         configure: (proxy, _options) => {
           proxy.on('proxyReq', (proxyReq) => {
