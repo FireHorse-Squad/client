@@ -8,7 +8,7 @@ import Logo from "../../assets/img/Firehorselogo.png";
 import ProfileDropdown from '../../components/ProfileDropdown';
 
 const pages = [
-    // { key: 'dashboard', label: 'Dashboard' },
+    { key: 'dashboard', label: 'Dashboard' },
     { key: 'timesheets', label: 'Timesheets' },
     { key: 'batch-export', label: 'Batch Export' },
     { key: 'costing-schedule', label: 'Costing Schedule' },
@@ -24,7 +24,7 @@ export default function TopBar({ user }) {
     const currentPath = location.pathname;
 
     const getPageKeyFromPath = (path) => {
-        // if (path === '/dashboard') return 'dashboard';
+        if (path === '/dashboard') return 'dashboard';
         if (path === '/timesheets') return 'timesheets';
         if (path === '/batch-export') return 'batch-export';
         if (path === '/costing-schedule') return 'costing-schedule';
