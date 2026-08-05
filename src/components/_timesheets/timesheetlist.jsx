@@ -92,7 +92,7 @@ const calculateRow = (timesheet, clientRates, employees) => {
         totalHours = biometricHours;
         const isAdHoc = timesheet.shift_type === 'Ad-Hoc';
 
-        const lunchDeduction = (timesheet.actual_lunch_hours !== null && timesheet.actual_lunch_hours !== undefined && timesheet.actual_lunch_hours !== '') ? parseFloat(timesheet.actual_lunch_hours) : (parseFloat(rate?.deduct_lunch_hour) || 0);
+        const lunchDeduction = (timesheet.actual_lunch_hours !== null && timesheet.actual_lunch_hours !== undefined && timesheet.actual_lunch_hours !== '') ? parseFloat(timesheet.actual_lunch_hours) : 0;
         const netHours = biometricHours - lunchDeduction;
 
         if (txCode === 1921 || txCode === 1922) {

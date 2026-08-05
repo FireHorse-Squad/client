@@ -213,10 +213,9 @@ export const calculateBatchExportRow = (timesheet, clientRates) => {
         const lunchDeduction =
             timesheet.actual_lunch_hours !== null &&
             timesheet.actual_lunch_hours !== undefined &&
-            timesheet.actual_lunch_hours !== "" &&
-            timesheet.actual_lunch_hours !== "0"
+            timesheet.actual_lunch_hours !== ""
                 ? parseFloat(timesheet.actual_lunch_hours)
-                : parseFloat(rate?.deduct_lunch_hour) || 0;
+                : 0;
         const netHours = biometricHours - lunchDeduction;
 
         if (txCode === 1921 || txCode === 1922) {
@@ -241,8 +240,7 @@ export const calculateBatchExportRow = (timesheet, clientRates) => {
         const getLunch = () =>
             timesheet.actual_lunch_hours !== null &&
             timesheet.actual_lunch_hours !== undefined &&
-            timesheet.actual_lunch_hours !== "" &&
-            timesheet.actual_lunch_hours !== "0"
+            timesheet.actual_lunch_hours !== ""
                 ? parseFloat(timesheet.actual_lunch_hours)
                 : parseFloat(rate.deduct_lunch_hour) || 0;
 
@@ -381,7 +379,7 @@ export const calculateTimesheetRow = (timesheet, clientRates, employees) => {
             timesheet.actual_lunch_hours !== undefined &&
             timesheet.actual_lunch_hours !== ""
                 ? parseFloat(timesheet.actual_lunch_hours)
-                : parseFloat(rate?.deduct_lunch_hour) || 0;
+                : 0;
         const netHours = totalHours - lunchDeduction;
 
         if (txCode === 1921 || txCode === 1922) {
@@ -494,12 +492,12 @@ export const calculateEmployeeData = (timesheets, clientRates, employees) => {
         }
     } else if (isBiometric) {
                 const biometricHours = parseFloat(timesheet.total_hours) || 0;
-                const lunchDeduction =
-                    timesheet.actual_lunch_hours !== null &&
-                    timesheet.actual_lunch_hours !== undefined &&
-                    timesheet.actual_lunch_hours !== ""
-                        ? parseFloat(timesheet.actual_lunch_hours)
-                        : parseFloat(rate?.deduct_lunch_hour) || 0;
+        const lunchDeduction =
+            timesheet.actual_lunch_hours !== null &&
+            timesheet.actual_lunch_hours !== undefined &&
+            timesheet.actual_lunch_hours !== ""
+                ? parseFloat(timesheet.actual_lunch_hours)
+                : 0;
                 const netHours = biometricHours - lunchDeduction;
 
                 if (txCode === 1921 || txCode === 1922) {

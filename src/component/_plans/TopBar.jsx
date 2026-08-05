@@ -9,12 +9,12 @@ import ProfileDropdown from '../../components/ProfileDropdown';
 
 const pages = [
     // { key: 'dashboard', label: 'Dashboard' },
-    { key: 'timesheets', label: 'Timesheets' },
-    { key: 'batch-export', label: 'Batch Export' },
-    { key: 'costing-schedule', label: 'Costing Schedule' },
-    { key: 'clients', label: 'Clients' },
-    { key: 'employees', label: 'Employees' },
-    { key: 'transaction-codes', label: 'Transaction Codes' }
+    { key: 'timesheets', label: 'Timesheets', roles: ['Account Manager', 'Wages Clerk', 'Cape Town Admin'] },
+    { key: 'batch-export', label: 'Batch Export', roles: ['Account Manager', 'Wages Clerk', 'Cape Town Admin'] },
+    { key: 'costing-schedule', label: 'Costing Schedule', roles: ['Account Manager', 'Wages Clerk', 'Cape Town Admin'] },
+    { key: 'clients', label: 'Clients', roles: ['Account Manager', 'Accounts Clerk'] },
+    { key: 'employees', label: 'Employees', roles: ['Account Manager',  'Accounts Clerk', 'Wages HR'] },
+    { key: 'transaction-codes', label: 'Transaction Codes', roles: ['Account Manager', 'Accounts Clerk'] }
 ];
 
 export default function TopBar({ user }) {
@@ -55,7 +55,7 @@ export default function TopBar({ user }) {
 
             <nav className="hidden lg:flex flex-1 justify-center items-center">
                 <div className="flex items-center gap-1 sm:gap-2 bg-[#FFFFFF] p-1.5 sm:p-2 rounded-xl shadow-inner">
-                    {pages.map((page) => {
+                    {pages.filter(page => !page.roles || page.roles.includes(user?.role)).map((page) => {
                         const isActive = activePage === page.key;
                         return (
                             <button
@@ -114,7 +114,7 @@ export default function TopBar({ user }) {
                         </IconButton>
                     </div>
                     <div className="flex-1 overflow-y-auto py-4">
-                        {pages.map((page) => (
+                        {pages.filter(page => !page.roles || page.roles.includes(user?.role)).map((page) => (
                             <button
                                 key={page.key}
                                 onClick={() => {

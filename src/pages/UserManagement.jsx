@@ -8,8 +8,8 @@ const ROLES = {
     MANAGER: 'Account Manager',
     WAGES_CLERK: 'Wages Clerk',
     ACCOUNTS_CLERK: 'Accounts Clerk',
-    WAGES_HR: 'Wages HR'
-
+    WAGES_HR: 'Wages HR',
+    CAPE_TOWN_ADMIN: 'Cape Town Admin'
 };
 
 const UserManagement = () => {
@@ -121,6 +121,8 @@ const UserManagement = () => {
                 return 'bg-green-100 text-green-700';
              case ROLES.WAGES_HR:
                 return 'bg-yellow-100 text-yellow-700';
+            case ROLES.CAPE_TOWN_ADMIN:
+                return 'bg-orange-100 text-orange-700';
             default:
                 return 'bg-slate-100 text-slate-700';
         }
@@ -305,6 +307,7 @@ const UserManagement = () => {
                                     <option value={ROLES.WAGES_CLERK}>{ROLES.WAGES_CLERK}</option>
                                     <option value={ROLES.ACCOUNTS_CLERK}>{ROLES.ACCOUNTS_CLERK}</option>
                                     <option value={ROLES.WAGES_HR}>{ROLES.WAGES_HR}</option>
+                                    <option value={ROLES.CAPE_TOWN_ADMIN}>{ROLES.CAPE_TOWN_ADMIN}</option>
                                 </select>
                             </div>
                             <div className="flex gap-3 pt-4 border-t border-slate-100 mt-6">
