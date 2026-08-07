@@ -8,13 +8,14 @@ import Logo from "../../assets/img/Firehorselogo.png";
 import ProfileDropdown from '../../components/ProfileDropdown';
 
 const pages = [
-    { key: 'dashboard', label: 'Dashboard' },
-    { key: 'timesheets', label: 'Timesheets' },
-    { key: 'batch-export', label: 'Batch Export' },
-    { key: 'costing-schedule', label: 'Costing Schedule' },
-    { key: 'clients', label: 'Clients' },
-    { key: 'employees', label: 'Employees' },
-    { key: 'transaction-codes', label: 'Transaction Codes' }
+    { key: 'dashboard', label: 'Dashboard', roles: ['Account Manager'] },
+    { key: 'timesheets', label: 'Timesheets', roles: ['Account Manager', 'Wages Clerk', 'Cape Town Admin'] },
+    { key: 'batch-export', label: 'Batch Export', roles: ['Account Manager', 'Wages Clerk', 'Cape Town Admin'] },
+    { key: 'costing-schedule', label: 'Costing Schedule', roles: ['Account Manager', 'Wages Clerk', 'Cape Town Admin'] },
+    { key: 'clients', label: 'Clients', roles: ['Account Manager'] },
+    { key: 'employees', label: 'Employees', roles: ['Account Manager', 'Wages HR'] },
+    { key: 'transaction-codes', label: 'Transaction Codes', roles: ['Account Manager'] },
+    { key: 'settings', label: 'Settings', roles: ['Account Manager', 'Wages Clerk', 'Accounts Clerk', 'Wages HR'] }
 ];
 
 export default function TopBar({ user }) {
@@ -31,6 +32,7 @@ export default function TopBar({ user }) {
         if (path === '/clients') return 'clients';
         if (path === '/employees') return 'employees';
         if (path === '/transaction-codes') return 'transaction-codes';
+        if (path === '/settings') return 'settings';
         if (path === '/user-management') return 'user-management';
         return null;
     };
