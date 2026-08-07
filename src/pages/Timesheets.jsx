@@ -22,6 +22,7 @@ export default function Timesheets() {
     const [deleteTarget, setDeleteTarget] = useState(null);
     const [deleting, setDeleting] = useState(false);
     const [exportData, setExportData] = useState([]);
+    const [allTimesheets, setAllTimesheets] = useState([]);
     const csvInputRef = useRef(null);
     const bioInputRef = useRef(null);
 
@@ -229,6 +230,7 @@ export default function Timesheets() {
                     onDelete={handleDeleteClick}
                     onBulkDelete={handleBulkDelete}
                     onExportData={setExportData}
+                    onTimesheetsLoaded={setAllTimesheets}
                 />
             </div>
             <TimesheetModal
@@ -236,6 +238,7 @@ export default function Timesheets() {
                 onClose={handleModalClose}
                 onSave={handleSave}
                 editData={editingRow}
+                timesheets={allTimesheets}
             />
 
             <Dialog

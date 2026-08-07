@@ -298,70 +298,80 @@ const processTimesheetData = (timesheets, clientRates, clientId, employees = [],
     const data = processNonSemiTimesheets(nonSemiTimesheets, rates);
 
     if (semiTimesheets.length > 0) {
-        const summaries = calculateSemiWeeklySummary(semiTimesheets, rates, employees, publicHolidays);
-        summaries.forEach((summary) => {
-            if (summary.normalTime > 0) {
-                data.push({
-                    id: `${summary.co_number}-${summary.weekStart}-NT`,
-                    co_number: summary.co_number,
-                    date: summary.weekStart,
-                    occupation: summary.occupation,
-                    timeType: "NT",
-                    rate: summary.rate,
-                    invoiceRate: parseFloat(summary.rate?.nt_invoice_rate || 0),
-                    employeeName: summary.employeeName,
-                    mon: 0,
-                    tue: 0,
-                    wed: 0,
-                    thu: 0,
-                    fri: 0,
-                    sat: 0,
-                    sun: 0,
-                    _weeklyTotal: summary.normalTime,
-                });
-            }
+        const groups = semiTimesheets.reduce((acc, ts) => {
+            const key = ts.semi_weekly_hours || '45';
+            if (!acc[key]) acc[key] = [];
+            acc[key].push(ts);
+            return acc;
+        }, {});
 
-            if (summary.overTime > 0) {
-                data.push({
-                    id: `${summary.co_number}-${summary.weekStart}-OT`,
-                    co_number: summary.co_number,
-                    date: summary.weekStart,
-                    occupation: `${summary.occupation} OT`,
-                    timeType: "OT",
-                    rate: summary.otRate,
-                    invoiceRate: parseFloat(summary.rate?.ot_1_5_invoice_rate || 0),
-                    employeeName: summary.employeeName,
-                    mon: 0,
-                    tue: 0,
-                    wed: 0,
-                    thu: 0,
-                    fri: 0,
-                    sat: 0,
-                    sun: 0,
-                    _weeklyTotal: summary.overTime,
-                });
-            }
+        Object.entries(groups).forEach(([weeklyHoursStr, groupTimesheets]) => {
+            const weeklyHours = parseFloat(weeklyHoursStr) || 45;
+            const summaries = calculateSemiWeeklySummary(groupTimesheets, rates, employees, publicHolidays, weeklyHours);
+            summaries.forEach((summary) => {
+                if (summary.normalTime > 0) {
+                    data.push({
+                        id: `${summary.co_number}-${summary.weekStart}-NT`,
+                        co_number: summary.co_number,
+                        date: summary.weekStart,
+                        occupation: summary.occupation,
+                        timeType: "NT",
+                        rate: summary.rate,
+                        invoiceRate: parseFloat(summary.rate?.nt_invoice_rate || 0),
+                        employeeName: summary.employeeName,
+                        mon: 0,
+                        tue: 0,
+                        wed: 0,
+                        thu: 0,
+                        fri: 0,
+                        sat: 0,
+                        sun: 0,
+                        _weeklyTotal: summary.normalTime,
+                    });
+                }
 
-            if (summary.doubleTime > 0) {
-                data.push({
-                    id: `${summary.co_number}-${summary.weekStart}-DT`,
-                    co_number: summary.co_number,
-                    date: summary.weekStart,
-                    occupation: `${summary.occupation} DT`,
-                    timeType: "DT",
-                    rate: summary.dtRate,
-                    invoiceRate: parseFloat(summary.rate?.ot_2_0_invoice_rate || 0),
-                    employeeName: summary.employeeName,
-                    mon: 0,
-                    tue: 0,
-                    wed: 0,
-                    thu: 0,
-                    fri: 0,
-                    sat: 0,
-                    sun: 0,
-                    _weeklyTotal: summary.doubleTime,
-                });
-            }
+                if (summary.overTime > 0) {
+                    data.push({
+                        id: `${summary.co_number}-${summary.weekStart}-OT`,
+                        co_number: summary.co_number,
+                        date: summary.weekStart,
+                        occupation: `${summary.occupation} OT`,
+                        timeType: "OT",
+                        rate: summary.otRate,
+                        invoiceRate: parseFloat(summary.rate?.ot_1_5_invoice_rate || 0),
+                        employeeName: summary.employeeName,
+                        mon: 0,
+                        tue: 0,
+                        wed: 0,
+                        thu: 0,
+                        fri: 0,
+                        sat: 0,
+                        sun: 0,
+                        _weeklyTotal: summary.overTime,
+                    });
+                }
+
+                if (summary.doubleTime > 0) {
+                    data.push({
+                        id: `${summary.co_number}-${summary.weekStart}-DT`,
+                        co_number: summary.co_number,
+                        date: summary.weekStart,
+                        occupation: `${summary.occupation} DT`,
+                        timeType: "DT",
+                        rate: summary.dtRate,
+                        invoiceRate: parseFloat(summary.rate?.ot_2_0_invoice_rate || 0),
+                        employeeName: summary.employeeName,
+                        mon: 0,
+                        tue: 0,
+                        wed: 0,
+                        thu: 0,
+                        fri: 0,
+                        sat: 0,
+                        sun: 0,
+                        _weeklyTotal: summary.doubleTime,
+                    });
+                }
+            });
         });
     }
 

@@ -167,7 +167,20 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
     };
 
     const processSemiAgg = () => {
-        const summaries = calculateSemiWeeklySummary(semiTimesheets, clientRates, employees, publicHolidays);
+        const groups = semiTimesheets.reduce((acc, ts) => {
+            const key = ts.semi_weekly_hours || '45';
+            if (!acc[key]) acc[key] = [];
+            acc[key].push(ts);
+            return acc;
+        }, {});
+
+        const allSummaries = [];
+        Object.entries(groups).forEach(([weeklyHoursStr, groupTimesheets]) => {
+            const weeklyHours = parseFloat(weeklyHoursStr) || 45;
+            const summaries = calculateSemiWeeklySummary(groupTimesheets, clientRates, employees, publicHolidays, weeklyHours);
+            allSummaries.push(...summaries);
+        });
+
         const semiTsNumbersByGroup = {};
         semiTimesheets.forEach((ts) => {
             const groupKey = `${ts.co_number}|${ts.occupation}`;
@@ -178,7 +191,7 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
                 semiTsNumbersByGroup[groupKey].add(ts.timesheet_number);
             }
         });
-        summaries.forEach((summary) => {
+        allSummaries.forEach((summary) => {
             const groupKey = `${summary.co_number}|${summary.occupation}`;
             const fullRate =
                 clientRates.find(

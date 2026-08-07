@@ -14,6 +14,7 @@ import {
 import Snackbar from "@mui/material/Snackbar";
 import Alert from "@mui/material/Alert";
 import api from "../../utils/api";
+import { calculateSemiWeeklySummary } from "../businesslogic/businesslogic";
 
 const getAdjustedDate = (date) => {
     const adjusted = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
@@ -39,7 +40,7 @@ const initialFormData = {
     semi_weekly_hours: "",
 };
 
-const TimesheetModal = ({ isOpen, onClose, onSave, editData, onDelete }) => {
+    const TimesheetModal = ({ isOpen, onClose, onSave, editData, onDelete, timesheets: propTimesheets }) => {
     const isEditMode = !!editData;
     const [formData, setFormData] = useState(initialFormData);
     const [employees, setEmployees] = useState([]);
@@ -139,6 +140,7 @@ const TimesheetModal = ({ isOpen, onClose, onSave, editData, onDelete }) => {
                 end_time: value === "Task" ? "" : "17:00",
                 units: value === "Task" ? "" : formData.units,
                 rate: value === "Task" ? "" : formData.rate,
+                semi_weekly_hours: value === "Semi" ? "45" : "",
             });
             setBadgeShiftType(value);
         } else if (name === "occupation") {
@@ -372,7 +374,7 @@ const TimesheetModal = ({ isOpen, onClose, onSave, editData, onDelete }) => {
                 units: formData.units ? parseFloat(formData.units) : null,
                 rate: formData.rate ? parseFloat(formData.rate) : null,
                 total_hours: formData.total_hours ? parseFloat(formData.total_hours) : null,
-                actual_lunch_hours: formData.actual_lunch_hours ? parseFloat(formData.actual_lunch_hours) : null,
+                actual_lunch_hours: formData.actual_lunch_hours !== "" ? parseFloat(formData.actual_lunch_hours) : null,
                 isDoubleShift: formData.isDoubleShift || false,
                 semi_weekly_hours: formData.semi_weekly_hours ? parseFloat(formData.semi_weekly_hours) : null,
                 status: 'active',
@@ -494,6 +496,64 @@ const TimesheetModal = ({ isOpen, onClose, onSave, editData, onDelete }) => {
     const handleSnackbarClose = (event, reason) => {
         if (reason === "clickaway") return;
         setSnackbarOpen(false);
+    };
+
+    const getSemiPreview = () => {
+        if (formData.shift_type !== "Semi" || !formData.semi_weekly_hours || !formData.start_time || !formData.end_time) {
+            return null;
+        }
+        const calculateHours = (timeIn, timeOut) => {
+            const start = new Date(`1970-01-01T${timeIn}`);
+            const end = new Date(`1970-01-01T${timeOut}`);
+            let diff = (end - start) / (1000 * 60 * 60);
+            if (diff <= 0) diff += 24;
+            return diff;
+        };
+        const totalHours = calculateHours(formData.start_time, formData.end_time);
+
+        const tsClientId = formData.client_id?.toString().trim().toUpperCase();
+        const tsOccupationRaw = formData.occupation?.toString().trim() || "";
+        const tsOccupation = tsOccupationRaw.endsWith("2.0") ? tsOccupationRaw.slice(0, -3) : tsOccupationRaw;
+        const rate = clientRates.find(
+            (r) =>
+                r.client_id?.toString().trim().toUpperCase() === tsClientId &&
+                r.occupation?.toString().trim() === tsOccupation
+        ) || clientRates.find(
+            (r) =>
+                r.client_id?.toString().trim().toUpperCase() === tsClientId &&
+                r.lookup?.toString().trim() === tsOccupation
+        ) || clientRates.find(
+            (r) =>
+                r.client_id?.toString().trim().toUpperCase() === tsClientId
+        );
+
+        const lunch = formData.actual_lunch_hours !== null && formData.actual_lunch_hours !== undefined && formData.actual_lunch_hours !== ""
+            ? parseFloat(formData.actual_lunch_hours)
+            : parseFloat(rate?.deduct_lunch_hour) || 0;
+        const netHours = totalHours - lunch;
+        const weeklyHours = parseFloat(formData.semi_weekly_hours);
+
+        const empCoNumber = formData.co_number?.toString().trim();
+        const empSemiRaw = (propTimesheets || [])
+            .filter(
+                (ts) =>
+                    ts.shift_type === "Semi" &&
+                    ts.co_number?.toString().trim() === empCoNumber &&
+                    ts.status !== "archived"
+            );
+        const empWeeklyHoursSet = new Set(empSemiRaw.map((ts) => ts.semi_weekly_hours).filter(Boolean));
+        const empWeeklyHours = empWeeklyHoursSet.size === 1 ? parseFloat([...empWeeklyHoursSet][0]) : weeklyHours;
+        const empSummaries = empSemiRaw.length > 0
+            ? calculateSemiWeeklySummary(empSemiRaw, clientRates, employees, [], empWeeklyHours)
+            : [];
+        const accumulatedNT = empSummaries.reduce((sum, s) => sum + (s.normalTime || 0), 0);
+        const accumulatedOT = empSummaries.reduce((sum, s) => sum + (s.overTime || 0), 0);
+
+        const remainingNormal = Math.max(0, weeklyHours - accumulatedNT);
+        const normalTime = Math.min(netHours, remainingNormal);
+        const overTime = Math.max(0, netHours - remainingNormal);
+
+        return { totalHours, netHours, normalTime, overTime, lunch, accumulatedNT, accumulatedOT };
     };
 
     if (!isOpen) return null;
@@ -627,23 +687,70 @@ const TimesheetModal = ({ isOpen, onClose, onSave, editData, onDelete }) => {
                                 </select>
                             </div>
                             {formData.shift_type === "Semi" && (
-                                <div className="flex flex-col">
-                                    <label className="block text-[10px] font-bold text-blue-600 uppercase mb-1">Weekly Hours</label>
-                                    <div className="flex items-center gap-4">
-                                        {["38.75", "40", "45"].map((hours) => (
-                                            <label key={hours} className="flex items-center gap-2 cursor-pointer">
-                                                <input
-                                                    type="radio"
-                                                    name="semi_weekly_hours"
-                                                    value={hours}
-                                                    checked={formData.semi_weekly_hours === hours}
-                                                    onChange={(e) => setFormData({ ...formData, semi_weekly_hours: e.target.value })}
-                                                    className="h-4 w-4 text-[#1742c4] border-slate-300 focus:ring-[#1742c4]"
-                                                />
-                                                <span className="text-xs text-slate-700">{hours} hrs</span>
-                                            </label>
-                                        ))}
+                                <div className="md:col-span-3">
+                                    <div className="flex flex-col">
+                                        <label className="block text-[10px] font-bold text-blue-600 uppercase mb-1">Weekly Hours</label>
+                                        <div className="flex items-center gap-4">
+                                            {["38.75", "40", "45"].map((hours) => (
+                                                <label key={hours} className="flex items-center gap-2 cursor-pointer">
+                                                    <input
+                                                        type="radio"
+                                                        name="semi_weekly_hours"
+                                                        value={hours}
+                                                        checked={formData.semi_weekly_hours === hours}
+                                                        onChange={(e) => setFormData({ ...formData, semi_weekly_hours: e.target.value })}
+                                                        className="h-4 w-4 text-[#1742c4] border-slate-300 focus:ring-[#1742c4]"
+                                                    />
+                                                    <span className="text-xs text-slate-700">{hours} hrs</span>
+                                                </label>
+                                            ))}
+                                        </div>
                                     </div>
+                                    {(() => {
+                                        const preview = getSemiPreview();
+                                        if (!preview) return null;
+                                        return (
+                                            <div className="mt-3 p-3 bg-indigo-50 border border-indigo-100 rounded-lg">
+                                                <p className="text-[10px] font-bold text-indigo-600 uppercase mb-2">Semi Hours Preview</p>
+                                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                                    <div>
+                                                        <span className="text-slate-500">Total Hours:</span>
+                                                        <span className="ml-1 font-mono font-semibold text-slate-700">{preview.totalHours.toFixed(2)}</span>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-slate-500">Lunch Deduction:</span>
+                                                        <span className="ml-1 font-mono font-semibold text-slate-700">{preview.lunch.toFixed(2)}</span>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-slate-500">Net Hours:</span>
+                                                        <span className="ml-1 font-mono font-semibold text-slate-700">{preview.netHours.toFixed(2)}</span>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-slate-500">Weekly Hours:</span>
+                                                        <span className="ml-1 font-mono font-semibold text-slate-700">{formData.semi_weekly_hours}</span>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-slate-500">Normal Time:</span>
+                                                        <span className="ml-1 font-mono font-semibold text-indigo-700">{preview.normalTime.toFixed(2)}</span>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-slate-500">Overtime:</span>
+                                                        <span className="ml-1 font-mono font-semibold text-orange-600">{preview.overTime.toFixed(2)}</span>
+                                                    </div>
+                                                    {preview.accumulatedOT > 0 && (
+                                                        <div className="col-span-2 mt-1 pt-2 border-t border-indigo-100">
+                                                            <span className="text-slate-500">Accumulated OT Hrs:</span>
+                                                            <span className="ml-1 font-mono font-bold text-orange-600">{preview.accumulatedOT.toFixed(2)}</span>
+                                                        </div>
+                                                    )}
+                                                    <div className="col-span-2 mt-1 pt-2 border-t border-indigo-100">
+                                                        <span className="text-slate-500">Accumulated NT Hrs:</span>
+                                                        <span className="ml-1 font-mono font-bold text-indigo-700">{preview.accumulatedNT.toFixed(2)}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                             )}
                         </div>

@@ -4,6 +4,7 @@ import TimesheetModal from "../../components/_timesheets/timesheetmodal";
 
 export default function TimesheetsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [allTimesheets, setAllTimesheets] = useState([]);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-200">
@@ -28,12 +29,13 @@ export default function TimesheetsPage() {
           </button>
         </div>
         <div className="w-[100%] b">
-          <TimesheetList />
+          <TimesheetList onTimesheetsLoaded={setAllTimesheets} />
         </div>
       </div>
       <TimesheetModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
+        timesheets={allTimesheets}
       />
     </div>
   );

@@ -2,7 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/Login';
-// import Dashboard from './pages/Dashboard';
+import Dashboard from './pages/Dashboard';
 import Timesheets from './pages/Timesheets';
 import BatchExport from './pages/BatchExport';
 import CostingSchedule from './pages/CostingSchedule';
@@ -23,10 +23,10 @@ const ROLES = {
 };
 
 const PAGE_ROLES = {
-    // '/dashboard': [ROLES.MANAGER, ROLES.WAGES_CLERK, ROLES.ACCOUNTS_CLERK],
-    '/timesheets': [ROLES.MANAGER, ROLES.WAGES_CLERK, ROLES.CAPE_TOWN_ADMIN],
-    '/batch-export': [ROLES.MANAGER, ROLES.WAGES_CLERK, ROLES.CAPE_TOWN_ADMIN],
-    '/costing-schedule': [ROLES.MANAGER, ROLES.WAGES_CLERK, ROLES.CAPE_TOWN_ADMIN],
+    '/dashboard': [ROLES.MANAGER, ROLES.WAGES_CLERK, ROLES.ACCOUNTS_CLERK],
+    '/timesheets': [ROLES.MANAGER, ROLES.WAGES_CLERK],
+    '/batch-export': [ROLES.MANAGER, ROLES.WAGES_CLERK],
+    '/costing-schedule': [ROLES.MANAGER, ROLES.WAGES_CLERK],
     '/clients': [ROLES.MANAGER, ROLES.WAGES_CLERK, ROLES.ACCOUNTS_CLERK],
     '/employees': [ROLES.MANAGER, ROLES.WAGES_CLERK, ROLES.ACCOUNTS_CLERK, ROLES.WAGES_HR],
     '/transaction-codes': [ROLES.MANAGER, ROLES.WAGES_CLERK, ROLES.ACCOUNTS_CLERK],
@@ -54,11 +54,11 @@ function AppLayout() {
             <main className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8">
                 <div className="max-w-[1900px] mx-auto">
                     <Routes>
-                        {/* <Route path="/dashboard" element={
+                         { <Route path="/dashboard" element={
                             <ProtectedRoute requiredRoles={PAGE_ROLES['/dashboard']}>
                                 <Dashboard />
                             </ProtectedRoute>
-                        } /> */}
+                        } /> }
                         <Route path="/timesheets" element={
                             <ProtectedRoute requiredRoles={PAGE_ROLES['/timesheets']}>
                                 <Timesheets />

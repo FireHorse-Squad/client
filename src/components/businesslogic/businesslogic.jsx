@@ -147,7 +147,7 @@ export const calculateSemiWeeklySummary = (semiTimesheets, clientRates, employee
                     normalTime = g.totalNetHours;
                 } else {
                     normalTime = Math.min(g.totalNetHours, weeklyHours);
-                    overTime = Math.max(0, g.totalNetHours - 45);
+                    overTime = Math.max(0, g.totalNetHours - weeklyHours);
                 }
             }
 
@@ -280,7 +280,10 @@ export const calculateBatchExportData = (timesheets, clientRates, employees = []
     const semiTimesheets = timesheets.filter((ts) => ts.shift_type === "Semi");
     const nonSemiTimesheets = timesheets.filter((ts) => ts.shift_type !== "Semi");
 
-    const semiRows = calculateSemiWeeklySummary(semiTimesheets, clientRates, employees, publicHolidays).flatMap((summary) => {
+    const semiWeeklyHoursSet = new Set(semiTimesheets.map((ts) => ts.semi_weekly_hours).filter(Boolean));
+    const weeklyHours = semiWeeklyHoursSet.size === 1 ? parseFloat([...semiWeeklyHoursSet][0]) : 45;
+
+    const semiRows = calculateSemiWeeklySummary(semiTimesheets, clientRates, employees, publicHolidays, weeklyHours).flatMap((summary) => {
         const d = new Date(summary.weekStart);
         const jobCode = d.getDate().toString().padStart(2, "0");
         const rows = [];

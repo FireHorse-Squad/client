@@ -203,7 +203,7 @@ const COLUMNS = [
     { id: 'actions', label: 'ACTIONS', minWidth: 90, align: 'center' },
 ];
 
-export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDelete, onExportData }) {
+export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDelete, onExportData, onTimesheetsLoaded }) {
     const { user: _user } = useAuth();
     const [rawTimesheets, setRawTimesheets] = useState([]);
     const [clientRates, setClientRates] = useState([]);
@@ -240,6 +240,7 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
             setRawTimesheets(tsRes.data);
             setClientRates(crRes.data);
             setEmployees(empRes.data);
+            onTimesheetsLoaded?.(tsRes.data);
         } catch (err) {
             setError(err.response?.data?.message || err.message || 'Failed to fetch timesheets');
         } finally {
@@ -367,21 +368,29 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
         });
 
         const semiRaw = filteredRaw.filter((ts) => ts.shift_type === 'Semi');
-        const weeklyHoursSet = new Set(semiRaw.map(ts => ts.semi_weekly_hours).filter(Boolean));
-        const weeklyHours = weeklyHoursSet.size === 1 ? parseFloat([...weeklyHoursSet][0]) : 45;
 
         let semiTotals = { totalHrs: 0, ntHrs: 0, otHrs: 0, dtHrs: 0, ntPay: 0, otPay: 0, dtPay: 0 };
 
         if (semiRaw.length > 0) {
-            const summaries = calculateSemiWeeklySummary(semiRaw, clientRates, employees, [], weeklyHours);
-            summaries.forEach((s) => {
-                semiTotals.totalHrs += s.totalHours;
-                semiTotals.ntHrs += s.normalTime;
-                semiTotals.otHrs += s.overTime;
-                semiTotals.dtHrs += s.doubleTime || 0;
-                semiTotals.ntPay += s.normalTimePay;
-                semiTotals.otPay += s.overTimePay;
-                semiTotals.dtPay += s.doubleTimePay || 0;
+            const groups = semiRaw.reduce((acc, ts) => {
+                const key = ts.semi_weekly_hours || '45';
+                if (!acc[key]) acc[key] = [];
+                acc[key].push(ts);
+                return acc;
+            }, {});
+
+            Object.entries(groups).forEach(([weeklyHoursStr, groupTimesheets]) => {
+                const weeklyHours = parseFloat(weeklyHoursStr) || 45;
+                const summaries = calculateSemiWeeklySummary(groupTimesheets, clientRates, employees, [], weeklyHours);
+                summaries.forEach((s) => {
+                    semiTotals.totalHrs += s.totalHours;
+                    semiTotals.ntHrs += s.normalTime;
+                    semiTotals.otHrs += s.overTime;
+                    semiTotals.dtHrs += s.doubleTime || 0;
+                    semiTotals.ntPay += s.normalTimePay;
+                    semiTotals.otPay += s.overTimePay;
+                    semiTotals.dtPay += s.doubleTimePay || 0;
+                });
             });
         }
 
