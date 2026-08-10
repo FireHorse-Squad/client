@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
-import { FileText, ChevronDown, RefreshCw } from "lucide-react";
+import { FileText, ChevronDown, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
 import html2pdf from "html2pdf.js";
 import api from "../utils/api";
 import { onDataChange } from "../utils/dataSync";
@@ -39,6 +39,14 @@ const getWeekBounds = (dateStr) => {
     return { start: monday, end: sunday };
 };
 
+const getWeekStart = (dateStr) => {
+    const d = new Date(dateStr);
+    const day = d.getDay();
+    const diff = day === 0 ? 6 : day - 1;
+    d.setDate(d.getDate() - diff);
+    return d.toISOString().split("T")[0];
+};
+
 const generateWeekDates = (referenceDate) => {
     const { start } = getWeekBounds(referenceDate);
     const dates = [];
@@ -51,20 +59,43 @@ const generateWeekDates = (referenceDate) => {
     return dates;
 };
 
-const processCostingData = (timesheets, clientRates, employees, publicHolidays = []) => {
+const formatDateHeader = (dateStr) => {
+    const date = new Date(dateStr + "T00:00:00");
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    return `${date.getDate()} ${months[date.getMonth()]}`;
+};
+
+const processCostingData = (timesheets, clientRates, employees, publicHolidays = [], referenceDate = null, skipWeekFilter = false) => {
     let filteredTimesheets = timesheets.filter((ts) => ts.status !== "archived");
+
+    let dates = [];
+    let weekStart = null;
+    if (referenceDate) {
+        dates = generateWeekDates(referenceDate);
+        weekStart = dates[0]?.date || null;
+    } else if (filteredTimesheets.length > 0) {
+        const uniqueDates = [...new Set(filteredTimesheets.map((ts) => getAdjustedDate(ts.timesheet_date)).filter(Boolean))].sort();
+        const referenceDateFromData = uniqueDates[uniqueDates.length - 1];
+        dates = generateWeekDates(referenceDateFromData);
+        weekStart = dates[0]?.date || null;
+    } else {
+        dates = generateWeekDates(new Date().toISOString().split("T")[0]);
+        weekStart = dates[0]?.date || null;
+    }
+
+    if (!skipWeekFilter && weekStart) {
+        filteredTimesheets = filteredTimesheets.filter((ts) => {
+            const adjustedDate = getAdjustedDate(ts.timesheet_date);
+            if (!adjustedDate) return false;
+            if (ts.shift_type === "Semi") {
+                return getWeekStart(adjustedDate) === weekStart;
+            }
+            return adjustedDate >= weekStart && adjustedDate <= dates[6]?.date;
+        });
+    }
 
     const semiTimesheets = filteredTimesheets.filter((ts) => ts.shift_type === "Semi");
     const nonSemiTimesheets = filteredTimesheets.filter((ts) => ts.shift_type !== "Semi");
-
-    let dates = [];
-    if (filteredTimesheets.length > 0) {
-        const uniqueDates = [...new Set(filteredTimesheets.map((ts) => getAdjustedDate(ts.timesheet_date)).filter(Boolean))].sort();
-        const referenceDate = uniqueDates[uniqueDates.length - 1];
-        dates = generateWeekDates(referenceDate);
-    } else {
-        dates = generateWeekDates(new Date().toISOString().split("T")[0]);
-    }
 
     const data = [];
 
@@ -348,6 +379,8 @@ export default function CostingSchedule() {
     const [error, setError] = useState(null);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [downloading, setDownloading] = useState(false);
+    const [currentWeekStart, setCurrentWeekStart] = useState(null);
+    const [showDatePicker, setShowDatePicker] = useState(false);
     const pdfRef = useRef(null);
 
     const fetchData = useCallback(async () => {
@@ -387,6 +420,19 @@ export default function CostingSchedule() {
             unsubscribe();
         };
     }, [fetchData]);
+
+    useEffect(() => {
+        if (currentWeekStart) return;
+        const activeTs = allTimesheets.filter((ts) => ts.status !== "archived");
+        if (activeTs.length > 0) {
+            const uniqueDates = [...new Set(activeTs.map((ts) => getAdjustedDate(ts.timesheet_date)).filter(Boolean))].sort();
+            if (uniqueDates.length > 0) {
+                setCurrentWeekStart(uniqueDates[uniqueDates.length - 1]);
+            }
+        } else {
+            setCurrentWeekStart(new Date().toISOString().split("T")[0]);
+        }
+    }, [allTimesheets, currentWeekStart]);
 
     const uniqueClientNames = useMemo(() => {
         if (!allTimesheets.length) return [];
@@ -478,6 +524,31 @@ export default function CostingSchedule() {
         fetchData().then(() => setIsRefreshing(false));
     };
 
+    const handlePrevWeek = () => {
+        if (!currentWeekStart) return;
+        const date = new Date(currentWeekStart + "T00:00:00");
+        date.setDate(date.getDate() - 7);
+        setCurrentWeekStart(date.toISOString().split("T")[0]);
+    };
+
+    const handleNextWeek = () => {
+        if (!currentWeekStart) return;
+        const date = new Date(currentWeekStart + "T00:00:00");
+        date.setDate(date.getDate() + 7);
+        setCurrentWeekStart(date.toISOString().split("T")[0]);
+    };
+
+    const handleDateChange = (e) => {
+        const val = e.target.value;
+        if (!val) return;
+        const date = new Date(val + "T00:00:00");
+        const day = date.getDay();
+        const diff = day === 0 ? 6 : day - 1;
+        date.setDate(date.getDate() - diff);
+        setCurrentWeekStart(date.toISOString().split("T")[0]);
+        setShowDatePicker(false);
+    };
+
     const handleDownload = async () => {
         setDownloading(true);
         const element = pdfRef.current;
@@ -526,7 +597,7 @@ export default function CostingSchedule() {
         }
     };
 
-    const { data } = useMemo(() => {
+    const { data, dates, allData } = useMemo(() => {
         let filteredTimesheets = allTimesheets.filter((ts) => ts.status !== "archived");
         let filteredClientRates = allClientRates;
 
@@ -551,9 +622,10 @@ export default function CostingSchedule() {
             );
         }
 
-        const result = processCostingData(filteredTimesheets, filteredClientRates, allEmployees, publicHolidays);
-        return { data: result.data, dates: result.dates };
-    }, [allTimesheets, allClientRates, allEmployees, publicHolidays, selectedClientName, selectedClientId, selectedTsNo]);
+        const allResult = processCostingData(filteredTimesheets, filteredClientRates, allEmployees, publicHolidays, null, true);
+        const weekResult = processCostingData(filteredTimesheets, filteredClientRates, allEmployees, publicHolidays, currentWeekStart, false);
+        return { data: weekResult.data, dates: weekResult.dates, allData: allResult.data };
+    }, [allTimesheets, allClientRates, allEmployees, publicHolidays, selectedClientName, selectedClientId, selectedTsNo, currentWeekStart]);
 
     const totals = useMemo(() => {
         let monTot = 0, tueTot = 0, wedTot = 0, thuTot = 0, friTot = 0, satTot = 0, sunTot = 0;
@@ -584,6 +656,25 @@ export default function CostingSchedule() {
             totalHrs: totalHrsSum, cost: totalCostSum, charge: totalChargeSum, margin
         };
     }, [data]);
+
+    const kpiTotals = useMemo(() => {
+        let totalHrsSum = 0;
+        let totalCostSum = 0;
+        let totalChargeSum = 0;
+
+        allData.forEach(row => {
+            const typeHours = row.type === "NT" ? row.entry.NT : row.type === "OT" ? row.entry.OT : row.entry.DT;
+            const rowHrs = typeHours.mon + typeHours.tue + typeHours.wed + typeHours.thu + typeHours.fri + typeHours.sat + typeHours.sun;
+            totalHrsSum += rowHrs;
+            totalCostSum += rowHrs * row.rate;
+            totalChargeSum += rowHrs * row.invoiceRate;
+        });
+
+        const profit = totalChargeSum - totalCostSum;
+        const margin = totalChargeSum > 0 ? (profit / totalChargeSum) * 100 : 0;
+
+        return { totalHrs: totalHrsSum, cost: totalCostSum, charge: totalChargeSum, margin };
+    }, [allData]);
 
     const activeClientName = useMemo(() => {
         if (selectedClientId) {
@@ -705,7 +796,7 @@ export default function CostingSchedule() {
                 <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-md shadow-slate-100/40 hover:translate-y-[-2px] transition-transform">
                     <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Accumulated Hours</p>
                     <div className="flex items-baseline gap-2 mt-2">
-                        <span className="text-3xl font-black text-slate-800">{totals.totalHrs.toFixed(1)}</span>
+                        <span className="text-3xl font-black text-slate-800">{kpiTotals.totalHrs.toFixed(1)}</span>
                         <span className="text-xs font-semibold text-slate-500">hrs</span>
                     </div>
                     <p className="text-[11px] text-indigo-500 font-semibold mt-2.5 flex items-center">
@@ -719,7 +810,7 @@ export default function CostingSchedule() {
                     <div className="flex items-baseline gap-1 mt-2">
                         <span className="text-slate-400 font-bold text-lg">R</span>
                         <span className="text-3xl font-black text-slate-800">
-                            {totals.cost.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            {kpiTotals.cost.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                     </div>
                     <p className="text-[11px] text-amber-600 font-semibold mt-2.5 flex items-center">
@@ -733,7 +824,7 @@ export default function CostingSchedule() {
                     <div className="flex items-baseline gap-1 mt-2">
                         <span className="text-indigo-400 font-bold text-lg">R</span>
                         <span className="text-3xl font-black text-indigo-600">
-                            {totals.charge.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            {kpiTotals.charge.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                     </div>
                     <p className="text-[11px] text-green-600 font-semibold mt-2.5 flex items-center">
@@ -745,7 +836,7 @@ export default function CostingSchedule() {
                 <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-md shadow-slate-100/40 hover:translate-y-[-2px] transition-transform">
                     <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Operating Margin</p>
                     <div className="flex items-baseline gap-1 mt-2">
-                        <span className="text-3xl font-black text-slate-800">{totals.margin.toFixed(1)}</span>
+                        <span className="text-3xl font-black text-slate-800">{kpiTotals.margin.toFixed(1)}</span>
                         <span className="text-xs font-bold text-slate-500">%</span>
                     </div>
                     <p className="text-[11px] text-indigo-500 font-semibold mt-2.5 flex items-center">
@@ -774,12 +865,55 @@ export default function CostingSchedule() {
                 </div>
 
                 <div className="bg-white rounded-3xl shadow-xl shadow-slate-100/80 border border-slate-100/80">
-                    <div className="bg-slate-50/70 border-b border-slate-100 px-6 py-4 flex flex-col sm:flex-row justify-between sm:items-center gap-2">
+                    <div className="bg-slate-50/70 border-b border-slate-100 px-6 py-4 flex flex-col sm:flex-row justify-between sm:items-center gap-3">
                         <div className="flex items-center gap-2">
                             <CalendarIcon />
                             <span className="text-xs sm:text-sm font-bold text-slate-700">{activeClientName}</span>
                         </div>
-                        <span className="text-[10px] text-slate-400 font-mono">{data.length} schedule entries</span>
+                        <div className="flex items-center gap-3">
+                            <button
+                                onClick={handlePrevWeek}
+                                disabled={!currentWeekStart}
+                                className="p-1.5 bg-white hover:bg-slate-100 text-slate-600 rounded-lg border border-slate-200 transition-all flex items-center justify-center cursor-pointer disabled:opacity-40"
+                                title="Previous Week"
+                            >
+                                <ChevronLeft className="w-4 h-4" />
+                            </button>
+                            <span className="text-xs font-bold text-slate-700 min-w-[140px] text-center">
+                                {dates.length > 0 ? `${formatDateHeader(dates[0].date)} - ${formatDateHeader(dates[6].date)}` : ""}
+                            </span>
+                            <button
+                                onClick={handleNextWeek}
+                                disabled={!currentWeekStart}
+                                className="p-1.5 bg-white hover:bg-slate-100 text-slate-600 rounded-lg border border-slate-200 transition-all flex items-center justify-center cursor-pointer disabled:opacity-40"
+                                title="Next Week"
+                            >
+                                <ChevronRight className="w-4 h-4" />
+                            </button>
+                            <div className="relative">
+                                <button
+                                    onClick={() => setShowDatePicker((prev) => !prev)}
+                                    disabled={!currentWeekStart}
+                                    className="p-1.5 bg-white hover:bg-slate-100 text-slate-600 rounded-lg border border-slate-200 transition-all flex items-center justify-center cursor-pointer disabled:opacity-40"
+                                    title="Pick a date to jump to that week"
+                                >
+                                    <CalendarIcon />
+                                </button>
+                                {showDatePicker && currentWeekStart && (
+                                    <div className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg p-2 z-50">
+                                        <input
+                                            type="date"
+                                            value={currentWeekStart}
+                                            onChange={handleDateChange}
+                                            className="text-xs font-bold text-slate-700 border border-slate-200 rounded-md p-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                            <span className="text-[10px] text-slate-400 font-mono">{data.length} schedule entries</span>
+                            <span className="text-[10px] text-slate-400">·</span>
+                            <span className="text-[10px] text-slate-500 font-medium">Table: selected week only</span>
+                        </div>
                     </div>
 
                     <div ref={pdfRef} className="overflow-y-auto max-h-[50vh] lg:max-h-[70vh]">
@@ -801,13 +935,11 @@ export default function CostingSchedule() {
                                         <th style={{ width: "120px" }} className="px-2 py-3 bg-[#2D328F] shadow-[2px_0_5px_rgba(0,0,0,0.15)] text-[10px]">TS No</th>
                                         <th style={{ width: "200px" }} className="px-3 py-3 bg-[#2D328F] shadow-[2px_0_5px_rgba(0,0,0,0.15)]">Role / Description</th>
                                         <th style={{ width: "90px" }} className="px-2 py-3 border-r border-indigo-900/40 text-[10px]">Total Emp</th>
-                                        <th style={{ width: "45px" }} className="px-1.5 py-3 text-center bg-indigo-950/25 text-[10px]">Mon</th>
-                                        <th style={{ width: "45px" }} className="px-1.5 py-3 text-center bg-indigo-950/25 text-[10px]">Tue</th>
-                                        <th style={{ width: "45px" }} className="px-1.5 py-3 text-center bg-indigo-950/25 text-[10px]">Wed</th>
-                                        <th style={{ width: "45px" }} className="px-1.5 py-3 text-center bg-indigo-950/25 text-[10px]">Thu</th>
-                                        <th style={{ width: "45px" }} className="px-1.5 py-3 text-center bg-indigo-950/25 text-[10px]">Fri</th>
-                                        <th style={{ width: "45px" }} className="px-1.5 py-3 text-center bg-amber-500/20 text-amber-200 text-[10px]">Sat</th>
-                                        <th style={{ width: "45px" }} className="px-1.5 py-3 text-center bg-amber-500/20 text-amber-200 border-r border-indigo-900/40 text-[10px]">Sun</th>
+                                        {dates.map((d, i) => (
+                                            <th key={i} style={{ width: "45px" }} className={`px-1.5 py-3 text-center bg-indigo-950/25 text-[10px] ${i >= 5 ? 'bg-amber-500/20 text-amber-200' : ''} ${i === 6 ? 'border-r border-indigo-900/40' : ''}`}>
+                                                {formatDateHeader(d.date)}
+                                            </th>
+                                        ))}
                                         <th style={{ width: "60px" }} className="px-2 py-3 text-center font-black text-indigo-200 text-[10px]">Total</th>
                                         <th style={{ width: "75px" }} className="px-2 py-3 text-right text-[10px]">Hrly Rate</th>
                                         <th style={{ width: "85px" }} className="px-2 py-3 text-right font-black text-orange-200 text-[10px]">Cost</th>
