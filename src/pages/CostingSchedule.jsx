@@ -927,14 +927,13 @@ export default function CostingSchedule() {
                             <table className="border-collapse border-spacing-0 text-left w-full">
                                 <thead>
                                     <tr className="bg-[#2D328F]">
-                                        <th colSpan="3" className="px-4 py-2.5 text-[10px] font-black tracking-widest text-slate-200 border-r border-slate-700/50 uppercase">{activeClientName} - {selectedClientId}</th>
+                                        <th colSpan="2" className="px-4 py-2.5 text-[10px] font-black tracking-widest text-slate-200 border-r border-slate-700/50 uppercase">{activeClientName} - {selectedClientId}</th>
                                         <th colSpan="7" className="px-4 py-2.5 text-center text-[10px] font-black tracking-widest text-slate-200 border-r border-slate-700/50 uppercase bg-indigo-950/40">Weekly Hours Breakdown</th>
                                         <th colSpan="5" className="px-4 py-2.5 text-right text-[10px] font-black tracking-widest text-slate-200 uppercase">Costing & Billing Rates (R)</th>
                                     </tr>
                                     <tr className="bg-[#2D328F]/95 text-[11px] font-bold text-white uppercase tracking-wider sticky top-0 z-10 border-b border-slate-700">
                                         <th style={{ width: "120px" }} className="px-2 py-3 bg-[#2D328F] shadow-[2px_0_5px_rgba(0,0,0,0.15)] text-[10px]">TS No</th>
                                         <th style={{ width: "200px" }} className="px-3 py-3 bg-[#2D328F] shadow-[2px_0_5px_rgba(0,0,0,0.15)]">Role / Description</th>
-                                        <th style={{ width: "90px" }} className="px-2 py-3 border-r border-indigo-900/40 text-[10px]">Total Emp</th>
                                         {dates.map((d, i) => (
                                             <th key={i} style={{ width: "45px" }} className={`px-1.5 py-3 text-center bg-indigo-950/25 text-[10px] ${i >= 5 ? 'bg-amber-500/20 text-amber-200' : ''} ${i === 6 ? 'border-r border-indigo-900/40' : ''}`}>
                                                 {formatDateHeader(d.date)}
@@ -956,7 +955,6 @@ export default function CostingSchedule() {
                                         const isSmoke = index % 2 === 0;
                                         const rowBg = isSmoke ? "bg-[#F9FAFC] hover:bg-slate-100/80" : "bg-white hover:bg-slate-50";
                                         const dayVal = (d) => formatDayValue(getDayHours(row, d));
-                                        const selfCount = row.type === "NT" ? row.entry.NT.count : row.type === "OT" ? row.entry.OT.count : row.type === "DT" ? row.entry.DT.count : 0;
 
                                         return (
                                             <tr key={row.key + "-" + row.type} className={`${rowBg} transition-all duration-150`}>
@@ -971,14 +969,11 @@ export default function CostingSchedule() {
                                                          </div>
                                                      )}
                                                  </td>
-                                                <td style={{ width: "200px" }} className={`px-3 py-2 text-slate-800 font-bold shadow-[2px_0_5px_rgba(0,0,0,0.02)] ${isSmoke ? "bg-[#F9FAFC]" : "bg-white"} flex flex-col gap-0.5`}>
-                                                    <span className="text-[11px]">{getOccupationDisplay(row)}</span>
-                                                    <span className="text-[9px] font-normal text-slate-900">[{row.type}]</span>
-                                                </td>
-                                                <td style={{ width: "90px" }} className="px-2 py-2 border-r border-slate-100 text-indigo-600 font-semibold text-[11px]">
-                                                    {selfCount}
-                                                </td>
-                                                <td style={{ width: "45px" }} className={`px-2 py-2 text-center font-mono ${row.entry.NT.mon + row.entry.OT.mon + row.entry.DT.mon > 0 ? "text-slate-900 font-bold" : "text-slate-300"} text-[11px]`}>{dayVal("mon")}</td>
+                                                 <td style={{ width: "200px" }} className={`px-3 py-2 text-slate-800 font-bold shadow-[2px_0_5px_rgba(0,0,0,0.02)] ${isSmoke ? "bg-[#F9FAFC]" : "bg-white"} flex flex-col gap-0.5`}>
+                                                     <span className="text-[11px]">{getOccupationDisplay(row)}</span>
+                                                     <span className="text-[9px] font-normal text-slate-900">[{row.type}]</span>
+                                                 </td>
+                                                 <td style={{ width: "45px" }} className={`px-2 py-2 text-center font-mono ${row.entry.NT.mon + row.entry.OT.mon + row.entry.DT.mon > 0 ? "text-slate-900 font-bold" : "text-slate-300"} text-[11px]`}>{dayVal("mon")}</td>
                                                 <td style={{ width: "45px" }} className={`px-2 py-2 text-center font-mono ${row.entry.NT.tue + row.entry.OT.tue + row.entry.DT.tue > 0 ? "text-slate-900 font-bold" : "text-slate-300"} text-[11px]`}>{dayVal("tue")}</td>
                                                 <td style={{ width: "45px" }} className={`px-2 py-2 text-center font-mono ${row.entry.NT.wed + row.entry.OT.wed + row.entry.DT.wed > 0 ? "text-slate-900 font-bold" : "text-slate-300"} text-[11px]`}>{dayVal("wed")}</td>
                                                 <td style={{ width: "45px" }} className={`px-2 py-2 text-center font-mono ${row.entry.NT.thu + row.entry.OT.thu + row.entry.DT.thu > 0 ? "text-slate-900 font-bold" : "text-slate-300"} text-[11px]`}>{dayVal("thu")}</td>
@@ -998,7 +993,6 @@ export default function CostingSchedule() {
                                         <td style={{ width: "200px" }} className="px-3 py-2.5 bg-slate-100 shadow-[2px_0_5px_rgba(0,0,0,0.05)] font-black uppercase tracking-wider text-slate-800">
                                             Grand Total
                                         </td>
-                                        <td style={{ width: "90px" }} className="px-2 py-2.5 border-r border-slate-200"></td>
                                         <td style={{ width: "45px" }} className="px-2 py-2.5 text-center font-mono">{totals.mon.toFixed(2)}</td>
                                         <td style={{ width: "45px" }} className="px-2 py-2.5 text-center font-mono">{totals.tue.toFixed(2)}</td>
                                         <td style={{ width: "45px" }} className="px-2 py-2.5 text-center font-mono">{totals.wed.toFixed(2)}</td>
