@@ -103,8 +103,10 @@ const calculateRow = (timesheet, clientRates, employees) => {
             otPay = otHrs * (parseFloat(rate?.ot_1_5_rate) || 0);
         } else {
             if (isAdHoc) {
-                ntHrs = netHours;
+                ntHrs = Math.min(netHours, parseFloat(rate?.hrs_pd) || 8);
+                otHrs = Math.max(0, netHours - (parseFloat(rate?.hrs_pd) || 8));
                 ntPay = ntHrs * (parseFloat(rate?.sub_total_a) || 0);
+                otPay = otHrs * (parseFloat(rate?.ot_1_5_rate) || 0);
             } else {
                 const isSemi = timesheet.shift_type === 'Semi';
                 if (isSemi) {
@@ -141,8 +143,10 @@ const calculateRow = (timesheet, clientRates, employees) => {
                 const lunchDeduction = timesheet.actual_lunch_hours !== null && timesheet.actual_lunch_hours !== undefined && timesheet.actual_lunch_hours !== '' ? parseFloat(timesheet.actual_lunch_hours) : (parseFloat(rate?.deduct_lunch_hour) || 0);
                 const netHours = totalHours - lunchDeduction;
                 if (isAdHoc) {
-                    ntHrs = netHours;
+                    ntHrs = Math.min(netHours, parseFloat(rate?.hrs_pd) || 8);
+                    otHrs = Math.max(0, netHours - (parseFloat(rate?.hrs_pd) || 8));
                     ntPay = ntHrs * (parseFloat(rate?.sub_total_a) || 0);
+                    otPay = otHrs * (parseFloat(rate?.ot_1_5_rate) || 0);
                 } else {
                     ntHrs = Math.min(netHours, parseFloat(rate?.hrs_pd) || 8);
                     otHrs = Math.max(0, netHours - (parseFloat(rate?.hrs_pd) || 8));

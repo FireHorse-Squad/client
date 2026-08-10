@@ -226,8 +226,21 @@ export const calculateBatchExportRow = (timesheet, clientRates) => {
             return buildBatchExportRow(timesheet, "1920", isAdHoc ? netHours : biometricHours, otRate, (isAdHoc ? netHours : biometricHours) * otRate, timesheet.shift_type);
         } else {
             const ntRate = isAdHoc ? parseFloat(rate?.sub_total_a) || 0 : parseFloat(rate?.nt_hourly_rate) || 0;
-            if (timesheet.shift_type === "Semi" || isAdHoc) {
+            if (timesheet.shift_type === "Semi") {
                 return buildBatchExportRow(timesheet, effectiveTxCode, netHours, ntRate, netHours * ntRate, timesheet.shift_type);
+            }
+            if (isAdHoc) {
+                const normalTime = Math.min(netHours, parseFloat(rate?.hrs_pd) || 8);
+                const overTimeHours = Math.max(0, netHours - (parseFloat(rate?.hrs_pd) || 8));
+                const otRate = parseFloat(rate?.ot_1_5_rate) || 0;
+                const rows = [];
+                if (normalTime > 0) {
+                    rows.push(buildBatchExportRow(timesheet, effectiveTxCode, normalTime, ntRate, normalTime * ntRate, timesheet.shift_type));
+                }
+                if (overTimeHours > 0) {
+                    rows.push(buildBatchExportRow(timesheet, "1920", overTimeHours, otRate, overTimeHours * otRate, timesheet.shift_type));
+                }
+                return rows.length === 1 ? rows[0] : rows;
             }
             return buildBatchExportRow(timesheet, effectiveTxCode, biometricHours, ntRate, biometricHours * ntRate, timesheet.shift_type);
         }
@@ -393,8 +406,10 @@ export const calculateTimesheetRow = (timesheet, clientRates, employees) => {
             otPay = otHrs * (parseFloat(rate?.ot_1_5_rate) || 0);
         } else {
             if (isAdHoc) {
-                ntHrs = netHours;
+                ntHrs = Math.min(netHours, parseFloat(rate?.hrs_pd) || 8);
+                otHrs = Math.max(0, netHours - (parseFloat(rate?.hrs_pd) || 8));
                 ntPay = ntHrs * (parseFloat(rate?.sub_total_a) || 0);
+                otPay = otHrs * (parseFloat(rate?.ot_1_5_rate) || 0);
             } else {
                 ntHrs = netHours;
                 ntPay = netHours * (parseFloat(rate?.nt_hourly_rate) || 0);
@@ -426,8 +441,10 @@ export const calculateTimesheetRow = (timesheet, clientRates, employees) => {
             } else {
                 const netHours = totalHours - getLunch();
                 if (isAdHoc) {
-                    ntHrs = netHours;
+                    ntHrs = Math.min(netHours, parseFloat(rate?.hrs_pd) || 8);
+                    otHrs = Math.max(0, netHours - (parseFloat(rate?.hrs_pd) || 8));
                     ntPay = ntHrs * (parseFloat(rate?.sub_total_a) || 0);
+                    otPay = otHrs * (parseFloat(rate?.ot_1_5_rate) || 0);
                 } else {
                     ntHrs = Math.min(netHours, parseFloat(rate?.hrs_pd) || 8);
                     otHrs = Math.max(0, netHours - (parseFloat(rate?.hrs_pd) || 8));
@@ -511,8 +528,10 @@ export const calculateEmployeeData = (timesheets, clientRates, employees) => {
                     overTimePay = overTimeHours * (parseFloat(rate?.ot_1_5_rate) || 0);
                 } else {
                     if (isAdHoc) {
-                        normalTime = netHours;
+                        normalTime = Math.min(netHours, parseFloat(rate?.hrs_pd) || 8);
+                        overTimeHours = Math.max(0, netHours - (parseFloat(rate?.hrs_pd) || 8));
                         normalTimePay = normalTime * (parseFloat(rate?.sub_total_a) || 0);
+                        overTimePay = overTimeHours * (parseFloat(rate?.ot_1_5_rate) || 0);
                     } else {
                         normalTime = biometricHours;
                         normalTimePay = biometricHours * (parseFloat(rate?.nt_hourly_rate) || 0);
@@ -543,8 +562,10 @@ export const calculateEmployeeData = (timesheets, clientRates, employees) => {
                     } else {
                         const netHours = totalHours - getLunch();
                         if (isAdHoc) {
-                            normalTime = netHours;
+                            normalTime = Math.min(netHours, rate.hrs_pd);
+                            overTimeHours = Math.max(0, netHours - rate.hrs_pd);
                             normalTimePay = normalTime * (parseFloat(rate?.sub_total_a) || 0);
+                            overTimePay = overTimeHours * rate.ot_1_5_rate;
                         } else {
                             normalTime = Math.min(netHours, rate.hrs_pd);
                             overTimeHours = Math.max(0, netHours - rate.hrs_pd);

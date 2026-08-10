@@ -15,7 +15,7 @@ const pages = [
     { key: 'clients', label: 'Clients', roles: ['Account Manager'] },
     { key: 'employees', label: 'Employees', roles: ['Account Manager', 'Wages HR'] },
     { key: 'transaction-codes', label: 'Transaction Codes', roles: ['Account Manager'] },
-    { key: 'settings', label: 'Settings', roles: ['Account Manager', 'Wages Clerk', 'Accounts Clerk', 'Wages HR'] }
+
 ];
 
 export default function TopBar({ user }) {
