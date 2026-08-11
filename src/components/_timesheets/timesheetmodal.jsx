@@ -377,8 +377,11 @@ const initialFormData = {
                 actual_lunch_hours: formData.actual_lunch_hours !== "" ? parseFloat(formData.actual_lunch_hours) : null,
                 isDoubleShift: formData.isDoubleShift || false,
                 semi_weekly_hours: formData.semi_weekly_hours ? parseFloat(formData.semi_weekly_hours) : null,
-                status: 'active',
             };
+
+            if (!isEditMode) {
+                payload.status = 'active';
+            }
 
             if (isEditMode && editData?.id) {
                 await api.put(`/timesheets/${editData.id}`, payload);
@@ -396,6 +399,8 @@ const initialFormData = {
                 const preservedTransactionCode = formData.transaction_code;
                 const preservedShiftType = formData.shift_type;
                 const preservedSemiWeeklyHours = formData.semi_weekly_hours;
+                const preservedStartTime = formData.start_time;
+                const preservedEndTime = formData.end_time;
 
                 setFormData({
                     ...initialFormData,
@@ -406,6 +411,8 @@ const initialFormData = {
                     occupation: preservedOccupation,
                     transaction_code: preservedTransactionCode,
                     shift_type: preservedShiftType,
+                    start_time: preservedStartTime,
+                    end_time: preservedEndTime,
                     semi_weekly_hours: preservedSemiWeeklyHours,
                 });
                 setClientSearch(preservedClientId ? `${preservedClientId} - ${preservedClientName}` : "");
