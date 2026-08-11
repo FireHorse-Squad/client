@@ -760,23 +760,21 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
                                                         className="px-4 py-3 text-xs border-r border-slate-200/60 text-center"
                                                     >
                                                         <div className="flex items-center justify-center gap-3">
+                                                            <button
+                                                                onClick={() => onEdit?.(row)}
+                                                                className="text-blue-600 hover:text-blue-800 transition-colors"
+                                                                title="Edit"
+                                                            >
+                                                                <Pencil className="w-4 h-4" />
+                                                            </button>
                                                             {timesheetTab === 'active' ? (
-                                                                <>
-                                                                    <button
-                                                                        onClick={() => onEdit?.(row)}
-                                                                        className="text-blue-600 hover:text-blue-800 transition-colors"
-                                                                        title="Edit"
-                                                                    >
-                                                                        <Pencil className="w-4 h-4" />
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={() => onDelete?.(row)}
-                                                                        className="text-red-500 hover:text-red-700 transition-colors"
-                                                                        title="Delete"
-                                                                    >
-                                                                        <Trash2 className="w-4 h-4" />
-                                                                    </button>
-                                                                </>
+                                                                <button
+                                                                    onClick={() => onDelete?.(row)}
+                                                                    className="text-red-500 hover:text-red-700 transition-colors"
+                                                                    title="Delete"
+                                                                >
+                                                                    <Trash2 className="w-4 h-4" />
+                                                                </button>
                                                             ) : (
                                                                 <>
                                                                     <button
