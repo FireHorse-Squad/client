@@ -97,26 +97,14 @@ const calculateRow = (timesheet, clientRates, employees) => {
 
         if (txCode === 1921 || txCode === 1922) {
             dtHrs = netHours;
-            dtPay = dtHrs * (parseFloat(rate?.ot_2_0_rate) || 0);
+            dtPay = netHours * (parseFloat(rate?.ot_2_0_rate) || 0);
         } else if (txCode === 1920) {
             otHrs = netHours;
-            otPay = otHrs * (parseFloat(rate?.ot_1_5_rate) || 0);
+            otPay = netHours * (parseFloat(rate?.ot_1_5_rate) || 0);
         } else {
-            if (isAdHoc) {
-                ntHrs = Math.min(netHours, parseFloat(rate?.hrs_pd) || 8);
-                otHrs = Math.max(0, netHours - (parseFloat(rate?.hrs_pd) || 8));
-                ntPay = ntHrs * (parseFloat(rate?.sub_total_a) || 0);
-                otPay = otHrs * (parseFloat(rate?.ot_1_5_rate) || 0);
-            } else {
-                const isSemi = timesheet.shift_type === 'Semi';
-                if (isSemi) {
-                    ntHrs = netHours;
-                    ntPay = ntHrs * (parseFloat(rate?.nt_hourly_rate) || 0);
-                } else {
-                    ntHrs = netHours;
-                    ntPay = netHours * (parseFloat(rate?.nt_hourly_rate) || 0);
-                }
-            }
+            const ntRate = isAdHoc ? (parseFloat(rate?.sub_total_a) || 0) : (parseFloat(rate?.nt_hourly_rate) || 0);
+            ntHrs = netHours;
+            ntPay = netHours * ntRate;
         }
     } else {
         totalHours = calculateHours(timesheet.start_time, timesheet.end_time);
@@ -172,14 +160,13 @@ const calculateRow = (timesheet, clientRates, employees) => {
         occupation: timesheet.occupation || '',
         start: timesheet.start_time || '',
         end: timesheet.end_time || '',
-        totalHrs: parseFloat(totalHours.toFixed(2)),
-        ntHrs: parseFloat(ntHrs.toFixed(2)),
-        otHrs: parseFloat(otHrs.toFixed(2)),
-        dtHrs: parseFloat(dtHrs.toFixed(2)),
-        ntPay: parseFloat(ntPay.toFixed(2)),
-        otPay: parseFloat(otPay.toFixed(2)),
-        dtPay: parseFloat(dtPay.toFixed(2)),
-        
+        totalHrs: totalHours,
+        ntHrs: ntHrs,
+        otHrs: otHrs,
+        dtHrs: dtHrs,
+        ntPay: ntPay,
+        otPay: otPay,
+        dtPay: dtPay,
     };
 };
 
