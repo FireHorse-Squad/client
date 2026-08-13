@@ -104,29 +104,33 @@ const BatchExportTable = ({ data, rowsPerPage = 20, clientId = null }) => {
     //     URL.revokeObjectURL(url);
     // };
 
-      const exportToCSV = () => {
-    const csvContent = safeData.map(row => [
-      row.co_number,
-      row.transactionCode,
-      row.jobCode,
-      row.costCentre,
-      row.qtyHrs,
-      row.rate,
-      row.amount,
-      row.override
-    ].join(",")).join("\n");
+const exportToTXT = () => {
+  const csvContent = safeData.map(row => [
+    row.co_number,
+    row.transactionCode,
+    row.jobCode,
+    row.costCentre,
+    row.qtyHrs,
+    row.rate,
+    row.amount,
+    row.override
+  ].join(",")).join("\n");
 
-    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    const filename = clientId ? `batch_export_client_${clientId}.csv` : "batch_export.csv";
-    link.setAttribute("download", filename);
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+  
+  const blob = new Blob(["\uFEFF" + csvContent], { type: "text/plain;charset=utf-8;" });
+  
+  const link = document.createElement("a");
+  const url = URL.createObjectURL(blob);
+  link.setAttribute("href", url);
+ 
+  const filename = clientId ? `batch_export_client_${clientId}.txt` : "batch_export.txt";
+  link.setAttribute("download", filename);
+  
+  link.style.visibility = "hidden";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
 
     return (
         <div className="w-full bg-white shadow-xl rounded-xl overflow-hidden">
@@ -138,11 +142,11 @@ const BatchExportTable = ({ data, rowsPerPage = 20, clientId = null }) => {
                     <p className="text-xs text-slate-500 mt-1">{safeData.length} records</p>
                 </div>
                 <button
-                    onClick={exportToCSV}
+                    onClick={exportToTXT }
                     className="flex items-center space-x-2 px-4 py-2 bg-[#1742c4] text-white font-medium rounded-lg shadow-md hover:bg-[#4F46E5] transition"
                 >
                     <FileDown className="w-5 h-5" />
-                    <span>Export to CSV</span>
+                    <span>Export to TXT</span>
                 </button>
             </div>
 
