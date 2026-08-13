@@ -120,7 +120,7 @@ const exportToTXT = () => {
 
         if (!csvContent) return;
   
-  const blob = new Blob(["\uFEFF" + csvContent], { type: "text/plain;charset=utf-8;" });
+  const blob = new Blob([ csvContent], { type: "text/plain;charset=utf-8;" });
   
   const link = document.createElement("a");
   const url = URL.createObjectURL(blob);
