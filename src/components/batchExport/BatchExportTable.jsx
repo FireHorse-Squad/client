@@ -105,17 +105,20 @@ const BatchExportTable = ({ data, rowsPerPage = 20, clientId = null }) => {
     // };
 
 const exportToTXT = () => {
-  const csvContent = safeData.map(row => [
-    row.co_number,
-    row.transactionCode,
-    row.jobCode,
-    row.costCentre,
-    row.qtyHrs,
-    row.rate,
-    row.amount,
-    row.override
-  ].join(",")).join("\n");
+        const rows = (safeData || []).map((row) => [
+            String(row.co_number ?? ""),
+            String(row.transactionCode ?? ""),
+            String(row.jobCode ?? ""),
+            String(row.costCentre ?? ""),
+            String(row.qtyHrs ?? ""),
+            row.rate != null ? String(row.rate) : "",
+            row.amount != null ? String(row.amount) : "",
+            row.override ? String(row.override).toUpperCase() : "N",
+        ]);
 
+        const csvContent = rows.map((cols) => cols.join(",")).join("\n");
+
+        if (!csvContent) return;
   
   const blob = new Blob(["\uFEFF" + csvContent], { type: "text/plain;charset=utf-8;" });
   
