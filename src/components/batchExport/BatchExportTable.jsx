@@ -77,32 +77,56 @@ const BatchExportTable = ({ data, rowsPerPage = 20, clientId = null }) => {
     //     URL.revokeObjectURL(url);
     // };
 
-    const exportToCSV = () => {
-        const rows = (safeData || []).map((row) => [
-            String(row.co_number ?? ""),
-            String(row.transactionCode ?? ""),
-            String(row.jobCode ?? ""),
-            String(row.costCentre ?? ""),
-            String(row.qtyHrs ?? ""),
-            row.rate != null ? String(row.rate) : "",
-            row.amount != null ? String(row.amount) : "",
-            row.override ? String(row.override).toUpperCase() : "N",
-        ]);
+    // const exportToCSV = () => {
+    //     const rows = (safeData || []).map((row) => [
+    //         String(row.co_number ?? ""),
+    //         String(row.transactionCode ?? ""),
+    //         String(row.jobCode ?? ""),
+    //         String(row.costCentre ?? ""),
+    //         String(row.qtyHrs ?? ""),
+    //         row.rate != null ? String(row.rate) : "",
+    //         row.amount != null ? String(row.amount) : "",
+    //         row.override ? String(row.override).toUpperCase() : "N",
+    //     ]);
 
-        const csvContent = rows.map((cols) => cols.join(",")).join("\n");
+    //     const csvContent = rows.map((cols) => cols.join(",")).join("\n");
 
-        if (!csvContent) return;
+    //     if (!csvContent) return;
 
-        const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = clientId ? `batch_export_client_${clientId}.csv` : "batch_export.csv";
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-    };
+    //     const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+    //     const url = URL.createObjectURL(blob);
+    //     const link = document.createElement("a");
+    //     link.href = url;
+    //     link.download = clientId ? `batch_export_client_${clientId}.csv` : "batch_export.csv";
+    //     document.body.appendChild(link);
+    //     link.click();
+    //     document.body.removeChild(link);
+    //     URL.revokeObjectURL(url);
+    // };
+
+      const exportToCSV = () => {
+    const csvContent = safeData.map(row => [
+      row.co_number,
+      row.transactionCode,
+      row.jobCode,
+      row.costCentre,
+      row.qtyHrs,
+      row.rate,
+      row.amount,
+      row.override
+    ].join(",")).join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    const filename = clientId ? `batch_export_client_${clientId}.csv` : "batch_export.csv";
+    link.setAttribute("download", filename);
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
     return (
         <div className="w-full bg-white shadow-xl rounded-xl overflow-hidden">
