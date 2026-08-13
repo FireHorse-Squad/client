@@ -116,7 +116,7 @@ const exportToTXT = () => {
             row.override ? String(row.override).toUpperCase() : "N",
         ]);
 
-        const csvContent = rows.map((cols) => cols.join(",")).join("\n");
+        const csvContent = rows.map((cols) => cols.join(",")).join("\r\n");
 
         if (!csvContent) return;
   
