@@ -1,9 +1,11 @@
+import * as XLSX from "xlsx";
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { FileText, ChevronDown, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
 import html2pdf from "html2pdf.js";
 import api from "../utils/api";
 import { onDataChange } from "../utils/dataSync";
 import { calculateSemiWeeklySummary } from "../components/businesslogic/businesslogic";
+import { useAuth } from "../context/AuthContext";
 
 const getAdjustedDate = (date) => {
     if (!date) return "";
@@ -66,7 +68,10 @@ const formatDateHeader = (dateStr) => {
 };
 
 const processCostingData = (timesheets, clientRates, employees, publicHolidays = [], referenceDate = null, skipWeekFilter = false) => {
-    let filteredTimesheets = timesheets.filter((ts) => ts.status !== "archived");
+    let filteredTimesheets = timesheets.filter((ts) => {
+        const adjustedDate = getAdjustedDate(ts.timesheet_date);
+        return adjustedDate && ts.status !== "archived";
+    });
 
     let dates = [];
     let weekStart = null;
@@ -212,6 +217,7 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
                         DT: { count: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
                         days: new Set(),
                         tsNumber: timesheet.timesheet_number,
+                        empNo: timesheet.co_number || timesheet.empNo || timesheet.employee_no || "",
                     };
                 }
                 const entry = data[groupKey];
@@ -279,6 +285,7 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
                     DT: { count: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
                     days: new Set(),
                     tsNumber: representativeTsNumber,
+                    empNo: summary.co_number || "",
                 };
             }
             const entry = data[groupKey];
@@ -394,6 +401,7 @@ const DocumentIcon = () => (
 );
 
 export default function CostingSchedule() {
+    const { user } = useAuth();
     const [allTimesheets, setAllTimesheets] = useState([]);
     const [allClientRates, setAllClientRates] = useState([]);
     const [allEmployees, setAllEmployees] = useState([]);
@@ -621,6 +629,80 @@ export default function CostingSchedule() {
             element.style.overflowY = originalOverflowY;
             setDownloading(false);
         }
+    };
+
+    const handleCostAllocationReport = () => {
+        if (!allData.length) return;
+
+        const clientNameMap = {};
+        const clientRegionMap = {};
+        allClientRates.forEach((r) => {
+            const id = r.client_id?.toString().trim();
+            const name = r.client_name?.toString().trim();
+            const region = r.region?.toString().trim();
+            if (id && name) clientNameMap[id] = name;
+            if (id && region) clientRegionMap[id] = region;
+        });
+
+        const days = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+
+        const detailRows = allData.map(({ entry, type, rate, invoiceRate }) => {
+            const typeHours = type === "NT" ? entry.NT : type === "OT" ? entry.OT : entry.DT;
+            const hours = days.reduce((sum, d) => sum + (typeHours[d] || 0), 0);
+            const cost = hours * rate;
+            const charge = hours * invoiceRate;
+            const clientName = entry.client_name || clientNameMap[entry.client_id?.toString().trim()] || "";
+            const region = clientRegionMap[entry.client_id?.toString().trim()] || "";
+            return {
+                Region: region,
+                "Timesheet No": entry.tsNumber || "",
+                "Employee No": entry.empNo || "",
+                "Client Name": clientName,
+                "Cost Centre": entry.client_id || "",
+                Occupation: entry.occupation || "",
+                Type: type,
+                Hours: parseFloat(hours.toFixed(2)),
+                Rate: parseFloat(rate.toFixed(2)),
+                "Invoice Rate": parseFloat(invoiceRate.toFixed(2)),
+                Cost: parseFloat(cost.toFixed(2)),
+                Charge: parseFloat(charge.toFixed(2)),
+            };
+        });
+
+        const summaryMap = {};
+        detailRows.forEach((row) => {
+            const key = row["Cost Centre"];
+            if (!summaryMap[key]) {
+                summaryMap[key] = {
+                    Region: row.Region,
+                    "Client Name": row["Client Name"],
+                    "Cost Centre": key,
+                    "Total Hours": 0,
+                    "Total Cost": 0,
+                    "Total Charge": 0,
+                };
+            }
+            summaryMap[key]["Total Hours"] = parseFloat((summaryMap[key]["Total Hours"] + row.Hours).toFixed(2));
+            summaryMap[key]["Total Cost"] = parseFloat((summaryMap[key]["Total Cost"] + row.Cost).toFixed(2));
+            summaryMap[key]["Total Charge"] = parseFloat((summaryMap[key]["Total Charge"] + row.Charge).toFixed(2));
+        });
+        const summaryRows = Object.values(summaryMap);
+
+        const wsSummary = XLSX.utils.json_to_sheet(summaryRows);
+        const wsDetail = XLSX.utils.json_to_sheet(detailRows);
+
+        wsSummary["!cols"] = [
+            { wch: 16 }, { wch: 24 }, { wch: 14 }, { wch: 14 }, { wch: 14 },
+        ];
+        wsDetail["!cols"] = [
+            { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 24 }, { wch: 20 }, { wch: 8 }, { wch: 12 },
+            { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 16 },
+        ];
+
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, wsSummary, "Cost Centre Summary");
+        XLSX.utils.book_append_sheet(wb, wsDetail, "Costing Projection");
+        XLSX.writeFile(wb, `Cost_Allocation_Report_${new Date().toISOString().split("T")[0]}.xlsx`);
     };
 
     const { data, dates, allData } = useMemo(() => {
@@ -880,14 +962,26 @@ export default function CostingSchedule() {
                         </span>
                     </div>
 
-                    <button
-                        onClick={handleDownload}
-                        disabled={data.length === 0 || downloading}
-                        className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-600/20 hover:shadow-indigo-600/30 transition-all flex items-center justify-center cursor-pointer disabled:bg-slate-300"
-                    >
-                        <DownloadIcon />
-                        {downloading ? "Generating PDF..." : "Download PDF Report"}
-                    </button>
+                    <div className="flex items-center gap-3">
+                        {user?.role === 'Account Manager' && (
+                            <button
+                                onClick={handleCostAllocationReport}
+                                disabled={data.length === 0}
+                                className="px-4 py-2.5 bg-white hover:bg-slate-50 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold shadow-sm hover:shadow-md transition-all flex items-center justify-center cursor-pointer disabled:bg-slate-100 disabled:text-slate-400"
+                            >
+                                <FileText className="w-4 h-4 mr-2" />
+                                Cost Allocation Report
+                            </button>
+                        )}
+                        <button
+                            onClick={handleDownload}
+                            disabled={data.length === 0 || downloading}
+                            className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-600/20 hover:shadow-indigo-600/30 transition-all flex items-center justify-center cursor-pointer disabled:bg-slate-300"
+                        >
+                            <DownloadIcon />
+                            {downloading ? "Generating PDF..." : "Download PDF Report"}
+                        </button>
+                    </div>
                 </div>
 
                 <div className="bg-white rounded-3xl shadow-xl shadow-slate-100/80 border border-slate-100/80">
