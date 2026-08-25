@@ -117,7 +117,7 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
             let totalHours = 0;
 
             const isBiometric = timesheet.shift_type !== "Task" && timesheet.total_hours != null;
-            const isAdHoc = timesheet.shift_type === "Ad-Hoc";
+            const isAdHoc = timesheet.shift_type === "Ad-Hoc" || timesheet.shift_type === "Adhoc";
 
             if (isBiometric) {
                 totalHours = parseFloat(timesheet.total_hours) || 0;

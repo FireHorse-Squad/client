@@ -205,7 +205,7 @@ export const calculateBatchExportRow = (timesheet, clientRates) => {
 
     const txCode = parseInt(timesheet.transaction_code, 10);
     const isBiometric = timesheet.total_hours != null;
-    const isAdHoc = timesheet.shift_type === "Ad-Hoc";
+    const isAdHoc = timesheet.shift_type === "Ad-Hoc" || timesheet.shift_type === "Adhoc";
     const effectiveTxCode = timesheet.transaction_code || rate?.transaction_code || "";
 
     if (isBiometric) {
@@ -357,7 +357,7 @@ export const calculateTimesheetRow = (timesheet, clientRates, employees) => {
 
     const isBiometric = timesheet.total_hours != null;
     const txCode = parseInt(timesheet.transaction_code, 10);
-    const isAdHoc = timesheet.shift_type === "Ad-Hoc";
+    const isAdHoc = timesheet.shift_type === "Ad-Hoc" || timesheet.shift_type === "Adhoc";
 
     if (timesheet.shift_type === "Task") {
         const totalUnits = parseFloat(timesheet.units) || 0;
@@ -473,7 +473,7 @@ export const calculateEmployeeData = (timesheets, clientRates, employees) => {
 
             const isBiometric = timesheet.total_hours != null;
             const txCode = parseInt(timesheet.transaction_code, 10);
-            const isAdHoc = timesheet.shift_type === "Ad-Hoc";
+            const isAdHoc = timesheet.shift_type === "Ad-Hoc" || timesheet.shift_type === "Adhoc";
 
     if (timesheet.shift_type === "Task") {
         const totalUnits = parseFloat(timesheet.units) || 0;

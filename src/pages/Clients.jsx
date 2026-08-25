@@ -427,8 +427,15 @@ export default function Clients() {
                                             </th>
                                         );
                                     }
+                                    if (index === 1) {
+                                        return (
+                                            <th key="edit" style={{ minWidth: '80px', width: '80px', backgroundColor: HEADER_BG }} className="text-white font-semibold text-xs py-3.5 px-4 uppercase tracking-wider text-center border-r border-indigo-900/40 select-none">
+                                                EDIT
+                                            </th>
+                                        );
+                                    }
                                     return (
-                                        <th key={column.key} style={{ minWidth: `${column.minWidth}px`, width: `${column.minWidth}px`, backgroundColor: HEADER_BG }} className={`text-white font-semibold text-xs py-3.5 px-4 uppercase tracking-wider text-left border-r border-indigo-900/40 select-none ${column.align === 'right' ? 'text-right' : 'text-left'} ${index === DISPLAY_FIELDS.length - 1 ? 'rounded-tr-sm' : ''}`}>
+                                        <th key={column.key} style={{ minWidth: `${column.minWidth}px`, width: `${column.minWidth}px`, backgroundColor: HEADER_BG }} className={`text-white font-semibold text-xs py-3.5 px-4 uppercase tracking-wider text-left border-r border-indigo-900/40 select-none ${column.align === 'right' ? 'text-right' : 'text-left'}`}>
                                             <div className="flex items-center justify-between cursor-pointer" onClick={() => handleSort(column.key)}>
                                                 <span>{column.label}</span>
                                                 <span className="text-[9px] opacity-60">⇅</span>
@@ -436,7 +443,7 @@ export default function Clients() {
                                         </th>
                                     );
                                 })}
-                                <th key="actions" style={{ minWidth: '80px', width: '80px', backgroundColor: HEADER_BG }} className="text-white font-semibold text-xs py-3.5 px-4 uppercase tracking-wider text-center border-r border-indigo-900/40 select-none rounded-tr-sm">ACTIONS</th>
+                                <th key="delete" style={{ minWidth: '80px', width: '80px', backgroundColor: HEADER_BG }} className="text-white font-semibold text-xs py-3.5 px-4 uppercase tracking-wider text-center border-r border-indigo-900/40 select-none rounded-tr-sm">DELETE</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-200">
@@ -446,7 +453,7 @@ export default function Clients() {
                                     const rowClass = isEven ? 'bg-[#F5F7FA] hover:bg-slate-200/80 transition-colors' : 'bg-white hover:bg-slate-100 transition-colors';
                                     return (
                                         <tr key={row.id} className={rowClass}>
-                                            {DISPLAY_FIELDS.map((column) => {
+                                            {DISPLAY_FIELDS.map((column, index) => {
                                                 if (column.isCheckbox) {
                                                     return (
                                                         <td key={column.key} style={{ width: `${column.minWidth}px` }} className="px-2 py-3 text-xs border-r border-slate-200/60 text-center">
@@ -460,6 +467,15 @@ export default function Clients() {
                                                         </td>
                                                     );
                                                 }
+                                                if (index === 1) {
+                                                    return (
+                                                        <td key="edit" className="px-4 py-3 text-xs text-center border-r border-slate-200/60" style={{ width: '80px' }}>
+                                                            <div className="flex justify-center gap-1">
+                                                                <button onClick={() => handleOpenModal(row)} className="p-1 text-slate-400 hover:text-blue-600 transition-colors"><Edit size={14} /></button>
+                                                            </div>
+                                                        </td>
+                                                    );
+                                                }
                                                 const cellVal = row[column.key];
                                                 const isNumeric = column.align === 'right';
                                                 return (
@@ -470,7 +486,6 @@ export default function Clients() {
                                             })}
                                             <td className="px-4 py-3 text-xs text-center border-r border-slate-200/60" style={{ width: '80px' }}>
                                                 <div className="flex justify-center gap-1">
-                                                    <button onClick={() => handleOpenModal(row)} className="p-1 text-slate-400 hover:text-blue-600 transition-colors"><Edit size={14} /></button>
                                                     <button onClick={() => setDeleteConfirm(row.id)} className="p-1 text-slate-400 hover:text-red-600 transition-colors"><Trash2 size={14} /></button>
                                                 </div>
                                             </td>
@@ -478,7 +493,7 @@ export default function Clients() {
                                     );
                                 })
                             ) : (
-                                <tr><td colSpan={DISPLAY_FIELDS.length + 1} className="py-16 text-center text-slate-400 bg-white"><div className="flex flex-col items-center justify-center"><div className="text-slate-300 text-5xl mb-3">📭</div><p className="text-base font-semibold text-slate-500">No client records found</p></div></td></tr>
+                                <tr><td colSpan={DISPLAY_FIELDS.length + 2} className="py-16 text-center text-slate-400 bg-white"><div className="flex flex-col items-center justify-center"><div className="text-slate-300 text-5xl mb-3">📭</div><p className="text-base font-semibold text-slate-500">No client records found</p></div></td></tr>
                             )}
                         </tbody>
                     </table>

@@ -109,7 +109,7 @@ const processNonSemiTimesheets = (clientTimesheets, rates) => {
             }
         }
 
-        const isAdHoc = timesheet.shift_type === "Ad-Hoc";
+        const isAdHoc = timesheet.shift_type === "Ad-Hoc" || timesheet.shift_type === "Adhoc";
         const isBiometric = timesheet.shift_type !== "Task" && timesheet.total_hours != null;
         const txCode = parseInt(timesheet.transaction_code, 10);
 
@@ -189,7 +189,7 @@ const processNonSemiTimesheets = (clientTimesheets, rates) => {
             data.push({
                 co_number: timesheet.co_number,
                 date: adjustedDate,
-                occupation: isAdHoc ? `${occupation} Ad-Hoc` : occupation,
+                occupation: isAdHoc ? `${occupation} Adhoc` : occupation,
                 timeType: "NT",
                 rate: ntRate,
                 invoiceRate: ntInvoiceRate,

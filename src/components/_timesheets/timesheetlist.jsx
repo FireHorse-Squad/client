@@ -90,7 +90,7 @@ const calculateRow = (timesheet, clientRates, employees) => {
     } else if (isBiometric) {
         const biometricHours = parseFloat(timesheet.total_hours) || 0;
         totalHours = biometricHours;
-        const isAdHoc = timesheet.shift_type === 'Ad-Hoc';
+        const isAdHoc = timesheet.shift_type === "Ad-Hoc" || timesheet.shift_type === "Adhoc";
 
         const lunchDeduction = (timesheet.actual_lunch_hours !== null && timesheet.actual_lunch_hours !== undefined && timesheet.actual_lunch_hours !== '') ? parseFloat(timesheet.actual_lunch_hours) : 0;
         const netHours = biometricHours - lunchDeduction;
@@ -108,7 +108,7 @@ const calculateRow = (timesheet, clientRates, employees) => {
         }
     } else {
         totalHours = calculateHours(timesheet.start_time, timesheet.end_time);
-        const isAdHoc = timesheet.shift_type === 'Ad-Hoc';
+        const isAdHoc = timesheet.shift_type === "Ad-Hoc" || timesheet.shift_type === "Adhoc";
 
         if (timesheet.isDoubleShift) {
             const lunchDeduction = timesheet.actual_lunch_hours !== null && timesheet.actual_lunch_hours !== undefined && timesheet.actual_lunch_hours !== '' ? parseFloat(timesheet.actual_lunch_hours) : (parseFloat(rate?.deduct_lunch_hour) || 0);
@@ -682,6 +682,17 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
                                     )}
                                 </button>
                             </th>
+                            <th
+                                key="edit"
+                                style={{
+                                    minWidth: '80px',
+                                    width: '80px',
+                                    backgroundColor: HEADER_BG
+                                }}
+                                className="text-white font-semibold text-xs py-3.5 px-4 uppercase tracking-wider text-center border-r border-indigo-900/40 select-none"
+                            >
+                                EDIT
+                            </th>
                             {COLUMNS.filter(c => !c.isCheckbox).map((column) => {
                                 const actualIndex = COLUMNS.indexOf(column);
                                 return (
@@ -699,7 +710,7 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
                                         `}
                                     >
                                         <div className="flex items-center justify-between">
-                                            <span>{column.label}</span>
+                                            <span>{column.id === 'actions' ? 'DELETE' : column.label}</span>
                                         </div>
                                     </th>
                                 );
@@ -735,6 +746,21 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
                                                 )}
                                             </button>
                                         </td>
+                                        <td
+                                            key="edit"
+                                            style={{ minWidth: '80px', width: '80px' }}
+                                            className="px-4 py-3 text-xs text-center border-r border-slate-200/60"
+                                        >
+                                            <div className="flex items-center justify-center gap-3">
+                                                <button
+                                                    onClick={() => onEdit?.(row)}
+                                                    className="text-blue-600 hover:text-blue-800 transition-colors"
+                                                    title="Edit"
+                                                >
+                                                    <Pencil className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </td>
                                         {COLUMNS.filter(c => !c.isCheckbox).map((column) => {
                                             const cellVal = row[column.id];
                                             const isNumeric = column.align === 'right';
@@ -747,13 +773,6 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
                                                         className="px-4 py-3 text-xs border-r border-slate-200/60 text-center"
                                                     >
                                                         <div className="flex items-center justify-center gap-3">
-                                                            <button
-                                                                onClick={() => onEdit?.(row)}
-                                                                className="text-blue-600 hover:text-blue-800 transition-colors"
-                                                                title="Edit"
-                                                            >
-                                                                <Pencil className="w-4 h-4" />
-                                                            </button>
                                                             {timesheetTab === 'active' ? (
                                                                 <button
                                                                     onClick={() => onDelete?.(row)}
@@ -818,7 +837,7 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
                         ) : (
                             <tr>
                                 <td
-                                    colSpan={COLUMNS.length}
+                                    colSpan={COLUMNS.length + 1}
                                     className="py-16 text-center text-slate-400 bg-white"
                                 >
                                     <div className="flex flex-col items-center justify-center">

@@ -70,6 +70,7 @@ const initialFormData = {
 
     const [clientOccupations, setClientOccupations] = useState([]);
     const [selectedOccupation, setSelectedOccupation] = useState("");
+    const [fieldErrors, setFieldErrors] = useState({});
 
     const onCloseRef = useRef(onClose);
     onCloseRef.current = onClose;
@@ -153,6 +154,14 @@ const initialFormData = {
             setFormData({ ...formData, [name]: value });
         } else {
             setFormData({ ...formData, [name]: value });
+        }
+
+        if (fieldErrors[name]) {
+            setFieldErrors((prev) => {
+                const next = { ...prev };
+                delete next[name];
+                return next;
+            });
         }
     };
 
@@ -242,6 +251,18 @@ const initialFormData = {
         });
         setSelectedOccupation(value);
         setBadgeOccupation(value);
+    };
+
+    const validateForm = () => {
+        const errors = {};
+        if (!formData.shift_type || !["Semi", "Ad-Hoc"].includes(formData.shift_type)) {
+            errors.shift_type = true;
+        }
+        if (!formData.occupation) {
+            errors.occupation = true;
+        }
+        setFieldErrors(errors);
+        return Object.keys(errors).length === 0;
     };
 
     const populateForm = (data) => {
@@ -357,6 +378,15 @@ const initialFormData = {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+
+        if (!validateForm()) {
+            setSnackbarMessage("Please fill in all required fields");
+            setSnackbarSeverity("error");
+            setSnackbarOpen(true);
+            setLoading(false);
+            return;
+        }
+
         setLoading(true);
 
         try {
@@ -368,7 +398,7 @@ const initialFormData = {
                 co_number: formData.co_number,
                 transaction_code: formData.transaction_code,
                 occupation: formData.occupation,
-                shift_type: formData.shift_type || 'Standard',
+                shift_type: formData.shift_type,
                 start_time: formData.start_time || null,
                 end_time: formData.end_time || null,
                 units: formData.units ? parseFloat(formData.units) : null,
@@ -477,6 +507,7 @@ const initialFormData = {
             setFilteredClients([]);
             setClientOccupations([]);
             setSelectedOccupation("");
+            setFieldErrors({});
         }
     };
 
@@ -497,6 +528,7 @@ const initialFormData = {
         setFilteredClients([]);
         setClientOccupations([]);
         setSelectedOccupation("");
+        setFieldErrors({});
         onClose();
     };
 
@@ -665,14 +697,15 @@ const initialFormData = {
                         <div className="bg-blue-50/50 p-4 rounded-lg border border-blue-100 md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4 mb-2">
                             <div className="flex flex-col">
                                 <label className="block text-[10px] font-bold text-blue-600 uppercase mb-1">Occupation</label>
-                                <select
-                                    name="occupation"
-                                    value={formData.occupation}
-                                    onChange={handleOccupationChange}
-                                    disabled={!selectedClient || clientOccupations.length === 0}
-                                    tabIndex={0}
-                                    className="w-full p-2 border border-blue-200 rounded-md focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-slate-100 disabled:text-slate-400"
-                                >
+                                    <select
+                                        name="occupation"
+                                        value={formData.occupation}
+                                        onChange={handleOccupationChange}
+                                        disabled={!selectedClient || clientOccupations.length === 0}
+                                        tabIndex={0}
+                                        required
+                                        className={`w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-slate-100 disabled:text-slate-400 ${fieldErrors.occupation ? "border-red-500" : "border-blue-200"}`}
+                                    >
                                     <option value="">
                                         {!selectedClient ? "Select a client first" : clientOccupations.length === 0 ? "No occupations available" : "Select Occupation"}
                                     </option>
@@ -687,7 +720,7 @@ const initialFormData = {
                             </div>
                             <div className="flex flex-col">
                                 <label className="block text-[10px] font-bold text-blue-600 uppercase mb-1">Shift Type</label>
-                                <select name="shift_type" value={formData.shift_type} onChange={handleChange} className="w-full p-2 border border-blue-200 rounded-md focus:ring-2 focus:ring-blue-500 outline-none">
+                                <select name="shift_type" value={formData.shift_type} onChange={handleChange} required className="w-full p-2 border border-blue-200 rounded-md focus:ring-2 focus:ring-blue-500 outline-none">
                                     <option value="">Select Shift Type</option>
                                     <option value="Semi">Semi</option>
                                     <option value="Ad-Hoc">Ad-Hoc</option>
