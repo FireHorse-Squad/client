@@ -850,8 +850,10 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
                     </tbody>
                     <tfoot className="bg-indigo-100 border-t border-indigo-100">
                         <tr className="border-t border-indigo-100">
+                            <td style={{ minWidth: `${COLUMNS[0].minWidth}px`, width: `${COLUMNS[0].minWidth}px` }}></td>
+                            <td style={{ minWidth: '80px', width: '80px' }}></td>
                             <td
-                                colSpan={COLUMNS.findIndex(c => c.id === 'totalHrs')}
+                                colSpan={COLUMNS.findIndex(c => c.id === 'totalHrs') - 1}
                                 className="px-4 py-3 text-xs font-bold uppercase tracking-wider border-r border-indigo-100 text-indigo-900"
                             >
                                 TOTALS
@@ -880,8 +882,7 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
                                 <span className="text-indigo-400 mr-0.5 text-[10px]">R</span>
                                 {totals.dtPay.toLocaleString('en-ZA', { minimumFractionDigits: 2 })}
                             </td>
-                            <td className="px-4 py-3 text-xs border-r border-indigo-100"></td>
-                            <td className="px-4 py-3 text-xs"></td>
+                            <td style={{ minWidth: '80px', width: '80px' }}></td>
                         </tr>
                     </tfoot>
                 </table>
