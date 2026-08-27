@@ -225,9 +225,6 @@ export default function Employees() {
                                             {selectedIds.length === paginatedData.length && paginatedData.length > 0 ? <CheckSquare className="w-4 h-4 text-white" /> : <Square className="w-4 h-4 text-white/70" />}
                                         </button>
                                     </th>
-                                    <th key="edit" style={{ minWidth: '80px', width: '80px', backgroundColor: HEADER_BG }} className="text-white font-semibold text-xs py-3.5 px-4 uppercase tracking-wider text-center border-r border-indigo-900/40 select-none">
-                                        EDIT
-                                    </th>
                                     {COLUMNS.filter(c => !c.isCheckbox).map((column) => {
                                         return (
                                             <th key={column.id} style={{ minWidth: `${column.minWidth}px`, width: `${column.minWidth}px`, backgroundColor: HEADER_BG }} className={`text-white font-semibold text-xs py-3.5 px-4 uppercase tracking-wider text-left border-r border-indigo-900/40 select-none`}>
@@ -235,7 +232,9 @@ export default function Employees() {
                                             </th>
                                         );
                                     })}
-                                    <th key="delete" style={{ minWidth: '80px', width: '80px', backgroundColor: HEADER_BG }} className="text-white font-semibold text-xs py-3.5 px-4 uppercase tracking-wider text-center border-r border-indigo-900/40 select-none rounded-tr-sm">DELETE</th>
+                                    <th key="actions" style={{ minWidth: '80px', width: '80px', backgroundColor: HEADER_BG }} className="text-white font-semibold text-xs py-3.5 px-4 uppercase tracking-wider text-center border-r border-indigo-900/40 select-none rounded-tr-sm">
+                                        ACTIONS
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-200">
@@ -258,28 +257,20 @@ export default function Employees() {
                                                         </td>
                                                     );
                                                 }
-                                                if (index === 1) {
-                                                    return (
-                                                        <td key="edit" className="px-4 py-3 text-xs text-center border-r border-slate-200/60" style={{ width: '80px' }}>
-                                                            <div className="flex justify-center gap-1">
-                                                                <button onClick={() => handleOpenModal(row)} className="p-1 text-slate-400 hover:text-blue-600 transition-colors"><Edit size={14} /></button>
-                                                            </div>
-                                                        </td>
-                                                    );
-                                                }
                                                 return (
                                                     <td key={column.id} style={{ width: `${column.minWidth}px` }} className="px-4 py-3 text-xs border-r border-slate-200/60 truncate text-slate-700 font-medium text-left" title={String(row[column.id] || '-')}>{row[column.id] || '-'}</td>
                                                 );
                                             })}
-                                            <td className="px-4 py-3 text-xs text-center border-r border-slate-200/60" style={{ width: '80px' }}>
+                                            <td key="actions" className="px-4 py-3 text-xs text-center border-r border-slate-200/60" style={{ width: '80px' }}>
                                                 <div className="flex justify-center gap-1">
+                                                    <button onClick={() => handleOpenModal(row)} className="p-1 text-slate-400 hover:text-blue-600 transition-colors"><Edit size={14} /></button>
                                                     <button onClick={() => setDeleteConfirm(row.id)} className="p-1 text-slate-400 hover:text-red-600 transition-colors"><Trash2 size={14} /></button>
                                                 </div>
                                             </td>
                                         </tr>
                                     );
                                 }) : (
-                                    <tr><td colSpan={COLUMNS.length + 2} className="py-16 text-center text-slate-400 bg-white"><div className="flex flex-col items-center justify-center"><div className="text-slate-300 text-5xl mb-3">📭</div><p className="text-base font-semibold text-slate-500">No employees found</p></div></td></tr>
+                                    <tr><td colSpan={COLUMNS.length + 1} className="py-16 text-center text-slate-400 bg-white"><div className="flex flex-col items-center justify-center"><div className="text-slate-300 text-5xl mb-3">📭</div><p className="text-base font-semibold text-slate-500">No employees found</p></div></td></tr>
                                 )}
                             </tbody>
                         </table>
