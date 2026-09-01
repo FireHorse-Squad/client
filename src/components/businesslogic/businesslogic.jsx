@@ -68,6 +68,9 @@ const isPublicHoliday = (dateStr, publicHolidays) => {
 };
 
 export const calculateSemiWeeklySummary = (semiTimesheets, clientRates, employees, publicHolidays = [], weeklyHours = 45) => {
+    const regularTimesheets = semiTimesheets.filter((ts) => ts.semi_weekly_hours !== "non-standard");
+    const nightShiftTimesheets = semiTimesheets.filter((ts) => ts.semi_weekly_hours === "non-standard");
+
     const groups = {};
 
     const getLunch = (ts, rate) => {
@@ -88,7 +91,7 @@ export const calculateSemiWeeklySummary = (semiTimesheets, clientRates, employee
         return totalHours - getLunch(ts, rate);
     };
 
-    semiTimesheets.forEach((ts) => {
+    regularTimesheets.forEach((ts) => {
         const rate = findRate(clientRates, ts.client_id, ts.occupation);
         if (!rate) return;
         const empNo = ts.co_number;
@@ -126,7 +129,7 @@ export const calculateSemiWeeklySummary = (semiTimesheets, clientRates, employee
             g.hasPublicHoliday = true;
     });
 
-    return Object.values(groups)
+    const regularSummaries = Object.values(groups)
         .map((g) => {
             const normalTimeRate = parseFloat(g.rate.nt_hourly_rate) || 0;
             const otRate = parseFloat(g.rate.ot_1_5_rate) || 0;
@@ -168,6 +171,70 @@ export const calculateSemiWeeklySummary = (semiTimesheets, clientRates, employee
         .sort((a, b) =>
             a.co_number.localeCompare(b.co_number) || a.weekKey.localeCompare(b.weekKey) || a.transactionCode.localeCompare(b.transactionCode)
         );
+
+    const nightShiftGroups = {};
+
+    nightShiftTimesheets.forEach((ts) => {
+        const rate = findRate(clientRates, ts.client_id, ts.occupation);
+        if (!rate) return;
+        const empNo = ts.co_number;
+        const weekKey = getWeekKey(ts.timesheet_date);
+        const txCode = (ts.transaction_code || "").toString().trim();
+        const key = `${empNo}-${weekKey}-${ts.client_id}-${ts.occupation}-${txCode}`;
+
+        if (!nightShiftGroups[key]) {
+            const employee = employees.find(
+                (emp) => emp.co_number?.toString().trim() === empNo?.toString().trim()
+            );
+            nightShiftGroups[key] = {
+                co_number: empNo,
+                employeeName: employee?.full_name || "Unknown",
+                weekKey,
+                weekStart: getWeekStart(ts.timesheet_date),
+                client_id: ts.client_id,
+                occupation: ts.occupation,
+                rate,
+                transactionCode: txCode,
+                totalNetHours: 0,
+                hasPublicHoliday: false,
+                hasSaturday: false,
+                daysWorked: 0,
+            };
+        }
+
+        const g = nightShiftGroups[key];
+        const totalHours = ts.total_hours != null ? parseFloat(ts.total_hours) : calculateHours(ts.start_time, ts.end_time);
+        g.totalNetHours += totalHours;
+        g.daysWorked += 1;
+        if (getDayOfWeek(ts.timesheet_date) === "Sat") g.hasSaturday = true;
+        if (isPublicHoliday(ts.timesheet_date, publicHolidays))
+            g.hasPublicHoliday = true;
+    });
+
+    const nightShiftSummaries = Object.values(nightShiftGroups).map((g) => {
+        const normalTimeRate = parseFloat(g.rate.nt_hourly_rate) || 0;
+        const normalTime = g.totalNetHours;
+        const overTime = 0;
+        const doubleTime = 0;
+
+        return {
+            ...g,
+            normalTime: parseFloat(normalTime.toFixed(2)),
+            overTime: parseFloat(overTime.toFixed(2)),
+            doubleTime: parseFloat(doubleTime.toFixed(2)),
+            totalHours: parseFloat(g.totalNetHours.toFixed(2)),
+            normalTimePay: parseFloat((normalTime * normalTimeRate).toFixed(2)),
+            overTimePay: parseFloat((overTime * 0).toFixed(2)),
+            doubleTimePay: parseFloat((doubleTime * 0).toFixed(2)),
+            rate: normalTimeRate,
+            otRate: 0,
+            dtRate: 0,
+        };
+    });
+
+    return [...regularSummaries, ...nightShiftSummaries].sort((a, b) =>
+        a.co_number.localeCompare(b.co_number) || a.weekKey.localeCompare(b.weekKey) || a.transactionCode.localeCompare(b.transactionCode)
+    );
 };
 
 const buildBatchExportRow = (timesheet, transactionCode, qtyHrs, rate, amount, shiftType) => {
@@ -277,8 +344,8 @@ export const calculateBatchExportData = (timesheets, clientRates, employees = []
     const semiTimesheets = timesheets.filter((ts) => ts.shift_type === "Semi");
     const nonSemiTimesheets = timesheets.filter((ts) => ts.shift_type !== "Semi");
 
-    const semiWeeklyHoursSet = new Set(semiTimesheets.map((ts) => ts.semi_weekly_hours).filter(Boolean));
-    const weeklyHours = semiWeeklyHoursSet.size === 1 ? parseFloat([...semiWeeklyHoursSet][0]) : 45;
+    const regularSemiWeeklyHoursSet = new Set(semiTimesheets.filter((ts) => ts.semi_weekly_hours !== "non-standard").map((ts) => ts.semi_weekly_hours).filter(Boolean));
+    const weeklyHours = regularSemiWeeklyHoursSet.size === 1 ? parseFloat([...regularSemiWeeklyHoursSet][0]) : 45;
 
     const semiRows = calculateSemiWeeklySummary(semiTimesheets, clientRates, employees, publicHolidays, weeklyHours).flatMap((summary) => {
         const d = new Date(summary.weekStart);
@@ -538,15 +605,16 @@ export const calculateEmployeeData = (timesheets, clientRates, employees) => {
                         overTimeHours = netHours;
                         overTimePay = netHours * rate.ot_1_5_rate;
                     } else {
-                        const netHours = totalHours - getLunch();
+                        const isNightShiftSemi = timesheet.shift_type === "Semi" && timesheet.semi_weekly_hours === "non-standard";
+                        const netHours = isNightShiftSemi ? totalHours : (totalHours - getLunch());
                         if (isAdHoc) {
                             normalTime = Math.min(netHours, rate.hrs_pd);
                             overTimeHours = Math.max(0, netHours - rate.hrs_pd);
                             normalTimePay = normalTime * (parseFloat(rate?.sub_total_a) || 0);
                             overTimePay = overTimeHours * rate.ot_1_5_rate;
                         } else {
-                            normalTime = Math.min(netHours, rate.hrs_pd);
-                            overTimeHours = Math.max(0, netHours - rate.hrs_pd);
+                            normalTime = isNightShiftSemi ? netHours : Math.min(netHours, rate.hrs_pd);
+                            overTimeHours = isNightShiftSemi ? 0 : Math.max(0, netHours - rate.hrs_pd);
                             normalTimePay = normalTime * rate.nt_hourly_rate;
                             overTimePay = overTimeHours * rate.ot_1_5_rate;
                         }

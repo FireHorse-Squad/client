@@ -406,7 +406,7 @@ const initialFormData = {
                 total_hours: formData.total_hours ? parseFloat(formData.total_hours) : null,
                 actual_lunch_hours: formData.actual_lunch_hours !== "" ? parseFloat(formData.actual_lunch_hours) : null,
                 isDoubleShift: formData.isDoubleShift || false,
-                semi_weekly_hours: formData.semi_weekly_hours ? parseFloat(formData.semi_weekly_hours) : null,
+                semi_weekly_hours: formData.semi_weekly_hours === "non-standard" ? "non-standard" : (formData.semi_weekly_hours ? parseFloat(formData.semi_weekly_hours) : null),
             };
 
             if (!isEditMode) {
@@ -549,6 +549,7 @@ const initialFormData = {
             return diff;
         };
         const totalHours = calculateHours(formData.start_time, formData.end_time);
+        const isNightShift = formData.semi_weekly_hours === "non-standard";
 
         const tsClientId = formData.client_id?.toString().trim().toUpperCase();
         const tsOccupationRaw = formData.occupation?.toString().trim() || "";
@@ -566,11 +567,10 @@ const initialFormData = {
                 r.client_id?.toString().trim().toUpperCase() === tsClientId
         );
 
-        const lunch = formData.actual_lunch_hours !== null && formData.actual_lunch_hours !== undefined && formData.actual_lunch_hours !== ""
+        const lunch = isNightShift ? 0 : (formData.actual_lunch_hours !== null && formData.actual_lunch_hours !== undefined && formData.actual_lunch_hours !== ""
             ? parseFloat(formData.actual_lunch_hours)
-            : parseFloat(rate?.deduct_lunch_hour) || 0;
+            : parseFloat(rate?.deduct_lunch_hour) || 0);
         const netHours = totalHours - lunch;
-        const weeklyHours = parseFloat(formData.semi_weekly_hours);
 
         const empCoNumber = formData.co_number?.toString().trim();
         const empSemiRaw = (propTimesheets || [])
@@ -578,21 +578,29 @@ const initialFormData = {
                 (ts) =>
                     ts.shift_type === "Semi" &&
                     ts.co_number?.toString().trim() === empCoNumber &&
-                    ts.status !== "archived"
+                    ts.status !== "archived" &&
+                    ts.semi_weekly_hours !== "non-standard" &&
+                    ts.id !== editData?.id
             );
         const empWeeklyHoursSet = new Set(empSemiRaw.map((ts) => ts.semi_weekly_hours).filter(Boolean));
-        const empWeeklyHours = empWeeklyHoursSet.size === 1 ? parseFloat([...empWeeklyHoursSet][0]) : weeklyHours;
+        const empWeeklyHours = empWeeklyHoursSet.size === 1 ? parseFloat([...empWeeklyHoursSet][0]) : 45;
         const empSummaries = empSemiRaw.length > 0
             ? calculateSemiWeeklySummary(empSemiRaw, clientRates, employees, [], empWeeklyHours)
             : [];
         const accumulatedNT = empSummaries.reduce((sum, s) => sum + (s.normalTime || 0), 0);
         const accumulatedOT = empSummaries.reduce((sum, s) => sum + (s.overTime || 0), 0);
 
-        const remainingNormal = Math.max(0, weeklyHours - accumulatedNT);
-        const normalTime = Math.min(netHours, remainingNormal);
-        const overTime = Math.max(0, netHours - remainingNormal);
+        let normalTime, overTime;
+        if (isNightShift) {
+            normalTime = netHours;
+            overTime = 0;
+        } else {
+            const remainingNormal = Math.max(0, empWeeklyHours - accumulatedNT);
+            normalTime = Math.min(netHours, remainingNormal);
+            overTime = Math.max(0, netHours - remainingNormal);
+        }
 
-        return { totalHours, netHours, normalTime, overTime, lunch, accumulatedNT, accumulatedOT };
+        return { totalHours, netHours, normalTime, overTime, lunch, accumulatedNT, accumulatedOT, isNightShift };
     };
 
     if (!isOpen) return null;
@@ -744,6 +752,17 @@ const initialFormData = {
                                                     <span className="text-xs text-slate-700">{hours} hrs</span>
                                                 </label>
                                             ))}
+                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                <input
+                                                    type="radio"
+                                                    name="semi_weekly_hours"
+                                                    value="non-standard"
+                                                    checked={formData.semi_weekly_hours === "non-standard"}
+                                                    onChange={(e) => setFormData({ ...formData, semi_weekly_hours: e.target.value })}
+                                                    className="h-4 w-4 text-[#1742c4] border-slate-300 focus:ring-[#1742c4]"
+                                                />
+                                                <span className="text-xs text-slate-700">Non-Standard</span>
+                                            </label>
                                         </div>
                                     </div>
                                     {(() => {
@@ -777,16 +796,18 @@ const initialFormData = {
                                                         <span className="text-slate-500">Overtime:</span>
                                                         <span className="ml-1 font-mono font-semibold text-orange-600">{preview.overTime.toFixed(2)}</span>
                                                     </div>
-                                                    {preview.accumulatedOT > 0 && (
+                                                    {!preview.isNightShift && preview.accumulatedOT > 0 && (
                                                         <div className="col-span-2 mt-1 pt-2 border-t border-indigo-100">
                                                             <span className="text-slate-500">Accumulated OT Hrs:</span>
                                                             <span className="ml-1 font-mono font-bold text-orange-600">{preview.accumulatedOT.toFixed(2)}</span>
                                                         </div>
                                                     )}
-                                                    <div className="col-span-2 mt-1 pt-2 border-t border-indigo-100">
-                                                        <span className="text-slate-500">Accumulated NT Hrs:</span>
-                                                        <span className="ml-1 font-mono font-bold text-indigo-700">{preview.accumulatedNT.toFixed(2)}</span>
-                                                    </div>
+                                                    {!preview.isNightShift && (
+                                                        <div className="col-span-2 mt-1 pt-2 border-t border-indigo-100">
+                                                            <span className="text-slate-500">Accumulated NT Hrs:</span>
+                                                            <span className="ml-1 font-mono font-bold text-indigo-700">{preview.accumulatedNT.toFixed(2)}</span>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         );

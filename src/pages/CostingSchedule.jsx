@@ -218,6 +218,7 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
                         days: new Set(),
                         tsNumber: timesheet.timesheet_number,
                         empNo: timesheet.co_number || timesheet.empNo || timesheet.employee_no || "",
+                        shift_type: timesheet.shift_type,
                     };
                 }
                 const entry = data[groupKey];
@@ -286,6 +287,7 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
                     days: new Set(),
                     tsNumber: representativeTsNumber,
                     empNo: summary.co_number || "",
+                    shift_type: "Semi",
                 };
             }
             const entry = data[groupKey];
@@ -655,6 +657,7 @@ export default function CostingSchedule() {
             const region = clientRegionMap[entry.client_id?.toString().trim()] || "";
             return {
                 Region: region,
+                "Shift Type": entry.shift_type || "",
                 "Timesheet No": entry.tsNumber || "",
                 "Employee No": entry.empNo || "",
                 "Client Name": clientName,
@@ -675,6 +678,7 @@ export default function CostingSchedule() {
             if (!summaryMap[key]) {
                 summaryMap[key] = {
                     Region: row.Region,
+                    "Shift Type": row["Shift Type"] || "",
                     "Client Name": row["Client Name"],
                     "Cost Centre": key,
                     "Total Hours": 0,
@@ -692,10 +696,10 @@ export default function CostingSchedule() {
         const wsDetail = XLSX.utils.json_to_sheet(detailRows);
 
         wsSummary["!cols"] = [
-            { wch: 16 }, { wch: 24 }, { wch: 14 }, { wch: 14 }, { wch: 14 },
+            { wch: 16 }, { wch: 12 }, { wch: 24 }, { wch: 14 }, { wch: 14 }, { wch: 14 },
         ];
         wsDetail["!cols"] = [
-            { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 24 }, { wch: 20 }, { wch: 8 }, { wch: 12 },
+            { wch: 16 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 24 }, { wch: 20 }, { wch: 8 }, { wch: 12 },
             { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 16 },
         ];
 

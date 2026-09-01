@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { onDataChange } from '../../utils/dataSync';
 import { Pencil, Trash2, CheckSquare, Square, Archive, RotateCcw } from 'lucide-react';
 import BulkDeleteModal from '../common/BulkDeleteModal';
+import DateRangePicker from '../common/DateRangePicker';
 import { calculateSemiWeeklySummary } from '../businesslogic/businesslogic';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
@@ -128,9 +129,14 @@ const calculateRow = (timesheet, clientRates, employees) => {
                 otHrs = netHours;
                 otPay = otHrs * (parseFloat(rate?.ot_1_5_rate) || 0);
             } else {
-                const lunchDeduction = timesheet.actual_lunch_hours !== null && timesheet.actual_lunch_hours !== undefined && timesheet.actual_lunch_hours !== '' ? parseFloat(timesheet.actual_lunch_hours) : (parseFloat(rate?.deduct_lunch_hour) || 0);
+                const isNightShiftSemi = timesheet.shift_type === 'Semi' && timesheet.semi_weekly_hours === 'non-standard';
+                const lunchDeduction = isNightShiftSemi ? 0 : (timesheet.actual_lunch_hours !== null && timesheet.actual_lunch_hours !== undefined && timesheet.actual_lunch_hours !== '' ? parseFloat(timesheet.actual_lunch_hours) : (parseFloat(rate?.deduct_lunch_hour) || 0));
                 const netHours = totalHours - lunchDeduction;
-                if (isAdHoc) {
+                if (isNightShiftSemi) {
+                    ntHrs = netHours;
+                    const ntRate = isAdHoc ? (parseFloat(rate?.sub_total_a) || 0) : (parseFloat(rate?.nt_hourly_rate) || 0);
+                    ntPay = ntHrs * ntRate;
+                } else if (isAdHoc) {
                     ntHrs = Math.min(netHours, parseFloat(rate?.hrs_pd) || 8);
                     otHrs = Math.max(0, netHours - (parseFloat(rate?.hrs_pd) || 8));
                     ntPay = ntHrs * (parseFloat(rate?.sub_total_a) || 0);
@@ -195,7 +201,7 @@ const COLUMNS = [
 ];
 
 export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDelete, onExportData, onTimesheetsLoaded }) {
-    const { user: _user } = useAuth();
+    const { user } = useAuth();
     const [rawTimesheets, setRawTimesheets] = useState([]);
     const [clientRates, setClientRates] = useState([]);
     const [employees, setEmployees] = useState([]);
@@ -218,6 +224,8 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
     const [selectedClientName, setSelectedClientName] = useState("");
     const [selectedUnknownsOnly, setSelectedUnknownsOnly] = useState(false);
     const [timesheetTab, setTimesheetTab] = useState('active');
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
 
     const fetchData = useCallback(async () => {
         try {
@@ -316,8 +324,20 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
         const unknownsOnly = selectedUnknownsOnly
             ? byClientName.filter((r) => r.employeeName === 'Unknown')
             : byClientName;
-        return unknownsOnly;
-    }, [currentData, selectedTsNo, selectedEmpNo, selectedClientId, selectedClientName, selectedUnknownsOnly]);
+        const byDateRange = startDate || endDate
+            ? unknownsOnly.filter((r) => {
+                if (startDate && endDate) {
+                    if (r.date < startDate || r.date > endDate) return false;
+                } else if (startDate) {
+                    if (r.date !== startDate) return false;
+                } else if (endDate) {
+                    if (r.date !== endDate) return false;
+                }
+                return true;
+            })
+            : unknownsOnly;
+        return byDateRange;
+    }, [currentData, selectedTsNo, selectedEmpNo, selectedClientId, selectedClientName, selectedUnknownsOnly, startDate, endDate]);
 
     useEffect(() => {
         if (onExportData) {
@@ -355,6 +375,8 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
             if (selectedClientId && (ts.client_id || '').toString() !== selectedClientId) return false;
             if (selectedClientName && (ts.client_name || '').toString() !== selectedClientName) return false;
             if (selectedUnknownsOnly && employees.some(emp => emp.co_number?.toString().trim() === ts.co_number?.toString().trim())) return false;
+            if (startDate && (ts.timesheet_date || '').toString().split(/[T\s]/)[0] < startDate) return false;
+            if (endDate && (ts.timesheet_date || '').toString().split(/[T\s]/)[0] > endDate) return false;
             return true;
         });
 
@@ -397,7 +419,7 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
             },
             semiTotals
         };
-    }, [filteredData, rawTimesheets, clientRates, employees, selectedEmpNo, selectedTsNo, selectedClientId, selectedClientName, selectedUnknownsOnly, timesheetTab]);
+    }, [filteredData, rawTimesheets, clientRates, employees, selectedEmpNo, selectedTsNo, selectedClientId, selectedClientName, selectedUnknownsOnly, timesheetTab, startDate, endDate]);
 
     const handlePageChange = (newPage) => {
         if (newPage >= 0 && newPage < totalPages) {
@@ -540,7 +562,7 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
             <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex flex-col gap-4 overflow-visible relative z-50">
                 <div className="flex items-center gap-6">
                     <button
-                        onClick={() => { setTimesheetTab('active'); setPage(0); setSelectedTsNo(''); setSelectedEmpNo(''); setSelectedClientId(''); setSelectedClientName(''); setSelectedUnknownsOnly(false); }}
+                        onClick={() => { setTimesheetTab('active'); setPage(0); setSelectedTsNo(''); setSelectedEmpNo(''); setSelectedClientId(''); setSelectedClientName(''); setSelectedUnknownsOnly(false); setStartDate(''); setEndDate(''); }}
                         className={`pb-2 text-sm font-semibold transition ${
                             timesheetTab === 'active'
                                 ? "border-b-4 border-[#1742c4] text-[#1742c4]"
@@ -550,7 +572,7 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
                         Active Timesheets
                     </button>
                     <button
-                        onClick={() => { setTimesheetTab('archived'); setPage(0); setSelectedTsNo(''); setSelectedEmpNo(''); setSelectedClientId(''); setSelectedClientName(''); setSelectedUnknownsOnly(false); }}
+                        onClick={() => { setTimesheetTab('archived'); setPage(0); setSelectedTsNo(''); setSelectedEmpNo(''); setSelectedClientId(''); setSelectedClientName(''); setSelectedUnknownsOnly(false); setStartDate(''); setEndDate(''); }}
                         className={`pb-2 text-sm font-semibold transition ${
                             timesheetTab === 'archived'
                                 ? "border-b-4 border-[#1742c4] text-[#1742c4]"
@@ -570,6 +592,18 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
                     </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3 pb-4">
+                    {user?.role === 'Account Manager' && (
+                        <div className="flex items-center gap-2">
+                            <label className="text-xs text-slate-500 font-medium whitespace-nowrap">Date:</label>
+                            <DateRangePicker
+                                startDate={startDate}
+                                endDate={endDate}
+                                onStartChange={(val) => { setStartDate(val); setPage(0); }}
+                                onEndChange={(val) => { setEndDate(val); setPage(0); }}
+                                onClear={() => { setStartDate(''); setEndDate(''); setPage(0); }}
+                            />
+                        </div>
+                    )}
                     {[
                         { key: 'tsNo', label: 'Timesheet No:', options: tsNumberOptions, value: selectedTsNo, set: setSelectedTsNo },
                         { key: 'clientId', label: 'Client ID:', options: clientIdOptions, value: selectedClientId, set: setSelectedClientId },
