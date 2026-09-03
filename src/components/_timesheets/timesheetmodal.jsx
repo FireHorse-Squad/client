@@ -406,7 +406,7 @@ const initialFormData = {
                 total_hours: formData.total_hours ? parseFloat(formData.total_hours) : null,
                 actual_lunch_hours: formData.actual_lunch_hours !== "" ? parseFloat(formData.actual_lunch_hours) : null,
                 isDoubleShift: formData.isDoubleShift || false,
-                semi_weekly_hours: formData.semi_weekly_hours === "non-standard" ? "non-standard" : (formData.semi_weekly_hours ? parseFloat(formData.semi_weekly_hours) : null),
+                semi_weekly_hours: formData.semi_weekly_hours === "n/s" ? "n/s" : (formData.semi_weekly_hours ? parseFloat(formData.semi_weekly_hours) : null),
             };
 
             if (!isEditMode) {
@@ -549,7 +549,7 @@ const initialFormData = {
             return diff;
         };
         const totalHours = calculateHours(formData.start_time, formData.end_time);
-        const isNightShift = formData.semi_weekly_hours === "non-standard";
+        const isNightShift = formData.semi_weekly_hours === "n/s";
 
         const tsClientId = formData.client_id?.toString().trim().toUpperCase();
         const tsOccupationRaw = formData.occupation?.toString().trim() || "";
@@ -579,7 +579,7 @@ const initialFormData = {
                     ts.shift_type === "Semi" &&
                     ts.co_number?.toString().trim() === empCoNumber &&
                     ts.status !== "archived" &&
-                    ts.semi_weekly_hours !== "non-standard" &&
+                    ts.semi_weekly_hours !== "n/s" &&
                     ts.id !== editData?.id
             );
         const empWeeklyHoursSet = new Set(empSemiRaw.map((ts) => ts.semi_weekly_hours).filter(Boolean));
@@ -756,8 +756,8 @@ const initialFormData = {
                                                 <input
                                                     type="radio"
                                                     name="semi_weekly_hours"
-                                                    value="non-standard"
-                                                    checked={formData.semi_weekly_hours === "non-standard"}
+                                                    value="n/s"
+                                                    checked={formData.semi_weekly_hours === "n/s"}
                                                     onChange={(e) => setFormData({ ...formData, semi_weekly_hours: e.target.value })}
                                                     className="h-4 w-4 text-[#1742c4] border-slate-300 focus:ring-[#1742c4]"
                                                 />

@@ -44,7 +44,7 @@ const calculateHours = (timeIn, timeOut) => {
 };
 
 const calculateRow = (timesheet, clientRates, employees) => {
-    const isBiometric = timesheet.shift_type !== 'Task' && timesheet.total_hours != null;
+    const isBiometric = (timesheet.shift_type !== 'Task' && timesheet.total_hours != null) || (timesheet.shift_type === 'Semi' && (timesheet.semi_weekly_hours || '').toString().trim() === 'n/s');
     let rate = null;
 
     if (timesheet.shift_type !== 'Task') {
@@ -89,14 +89,26 @@ const calculateRow = (timesheet, clientRates, employees) => {
         ntHrs = totalHours;
         ntPay = totalHours * (parseFloat(timesheet.rate) || 0);
     } else if (isBiometric) {
-        const biometricHours = parseFloat(timesheet.total_hours) || 0;
+        const isNonStandard = timesheet.shift_type === 'Semi' && (timesheet.semi_weekly_hours || '').toString().trim() === 'n/s';
+        let biometricHours = 0;
+
+        if (timesheet.total_hours != null) {
+            biometricHours = parseFloat(timesheet.total_hours) || 0;
+        } else if (isNonStandard) {
+            biometricHours = calculateHours(timesheet.start_time, timesheet.end_time);
+        }
+
         totalHours = biometricHours;
         const isAdHoc = timesheet.shift_type === "Ad-Hoc" || timesheet.shift_type === "Adhoc";
 
-        const lunchDeduction = (timesheet.actual_lunch_hours !== null && timesheet.actual_lunch_hours !== undefined && timesheet.actual_lunch_hours !== '') ? parseFloat(timesheet.actual_lunch_hours) : 0;
+        const lunchDeduction = isNonStandard ? 0 : ((timesheet.actual_lunch_hours !== null && timesheet.actual_lunch_hours !== undefined && timesheet.actual_lunch_hours !== '') ? parseFloat(timesheet.actual_lunch_hours) : 0);
         const netHours = biometricHours - lunchDeduction;
 
-        if (txCode === 1921 || txCode === 1922) {
+        if (isNonStandard) {
+            const ntRate = isAdHoc ? (parseFloat(rate?.sub_total_a) || 0) : (parseFloat(rate?.nt_hourly_rate) || 0);
+            ntHrs = netHours;
+            ntPay = netHours * ntRate;
+        } else if (txCode === 1921 || txCode === 1922) {
             dtHrs = netHours;
             dtPay = netHours * (parseFloat(rate?.ot_2_0_rate) || 0);
         } else if (txCode === 1920) {
@@ -129,17 +141,18 @@ const calculateRow = (timesheet, clientRates, employees) => {
                 otHrs = netHours;
                 otPay = otHrs * (parseFloat(rate?.ot_1_5_rate) || 0);
             } else {
-                const isNightShiftSemi = timesheet.shift_type === 'Semi' && timesheet.semi_weekly_hours === 'non-standard';
+                const isNightShiftSemi = timesheet.shift_type === 'Semi' && (timesheet.semi_weekly_hours || '').toString().trim() === 'n/s';
                 const lunchDeduction = isNightShiftSemi ? 0 : (timesheet.actual_lunch_hours !== null && timesheet.actual_lunch_hours !== undefined && timesheet.actual_lunch_hours !== '' ? parseFloat(timesheet.actual_lunch_hours) : (parseFloat(rate?.deduct_lunch_hour) || 0));
                 const netHours = totalHours - lunchDeduction;
                 if (isNightShiftSemi) {
-                    ntHrs = netHours;
                     const ntRate = isAdHoc ? (parseFloat(rate?.sub_total_a) || 0) : (parseFloat(rate?.nt_hourly_rate) || 0);
-                    ntPay = ntHrs * ntRate;
-                } else if (isAdHoc) {
-                    ntHrs = Math.min(netHours, parseFloat(rate?.hrs_pd) || 8);
-                    otHrs = Math.max(0, netHours - (parseFloat(rate?.hrs_pd) || 8));
-                    ntPay = ntHrs * (parseFloat(rate?.sub_total_a) || 0);
+                    ntHrs = netHours;
+                    ntPay = netHours * ntRate;
+                } else if (txCode === 1921 || txCode === 1922) {
+                    dtHrs = netHours;
+                    dtPay = dtHrs * (parseFloat(rate?.ot_2_0_rate) || 0);
+                } else if (txCode === 1920) {
+                    otHrs = netHours;
                     otPay = otHrs * (parseFloat(rate?.ot_1_5_rate) || 0);
                 } else {
                     ntHrs = Math.min(netHours, parseFloat(rate?.hrs_pd) || 8);
@@ -173,6 +186,7 @@ const calculateRow = (timesheet, clientRates, employees) => {
         ntPay: ntPay,
         otPay: otPay,
         dtPay: dtPay,
+        semi_weekly_hours: timesheet.semi_weekly_hours || '',
     };
 };
 
@@ -380,13 +394,16 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
             return true;
         });
 
-        const semiRaw = filteredRaw.filter((ts) => ts.shift_type === 'Semi');
+        const semiRaw = filteredRaw.filter((ts) => {
+            const swh = (ts.semi_weekly_hours || '').toString().trim();
+            return ts.shift_type === 'Semi' && swh !== 'n/s';
+        });
 
         let semiTotals = { totalHrs: 0, ntHrs: 0, otHrs: 0, dtHrs: 0, ntPay: 0, otPay: 0, dtPay: 0 };
 
         if (semiRaw.length > 0) {
             const groups = semiRaw.reduce((acc, ts) => {
-                const key = ts.semi_weekly_hours || '45';
+                const key = (ts.semi_weekly_hours || '').toString().trim() || '45';
                 if (!acc[key]) acc[key] = [];
                 acc[key].push(ts);
                 return acc;
@@ -407,17 +424,35 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
             });
         }
 
+        const nonStandardRows = filteredData.filter((r) => {
+            const swh = (r.semi_weekly_hours || '').toString().trim();
+            return r.shiftType === 'Semi' && swh === 'n/s';
+        });
+        const nonStandardTotals = nonStandardRows.reduce(
+            (acc, row) => ({
+                totalHrs: acc.totalHrs + (row.totalHrs || 0),
+                ntHrs: acc.ntHrs + (row.ntHrs || 0),
+                otHrs: acc.otHrs + (row.otHrs || 0),
+                dtHrs: acc.dtHrs + (row.dtHrs || 0),
+                ntPay: acc.ntPay + (row.ntPay || 0),
+                otPay: acc.otPay + (row.otPay || 0),
+                dtPay: acc.dtPay + (row.dtPay || 0),
+            }),
+            { totalHrs: 0, ntHrs: 0, otHrs: 0, dtHrs: 0, ntPay: 0, otPay: 0, dtPay: 0 }
+        );
+
         return {
             totals: {
-                totalHrs: nonSemiTotals.totalHrs + semiTotals.totalHrs,
-                ntHrs: nonSemiTotals.ntHrs + semiTotals.ntHrs,
-                otHrs: nonSemiTotals.otHrs + semiTotals.otHrs,
-                dtHrs: nonSemiTotals.dtHrs + semiTotals.dtHrs,
-                ntPay: nonSemiTotals.ntPay + semiTotals.ntPay,
-                otPay: nonSemiTotals.otPay + semiTotals.otPay,
-                dtPay: nonSemiTotals.dtPay + semiTotals.dtPay,
+                totalHrs: nonSemiTotals.totalHrs + semiTotals.totalHrs + nonStandardTotals.totalHrs,
+                ntHrs: nonSemiTotals.ntHrs + semiTotals.ntHrs + nonStandardTotals.ntHrs,
+                otHrs: nonSemiTotals.otHrs + semiTotals.otHrs + nonStandardTotals.otHrs,
+                dtHrs: nonSemiTotals.dtHrs + semiTotals.dtHrs + nonStandardTotals.dtHrs,
+                ntPay: nonSemiTotals.ntPay + semiTotals.ntPay + nonStandardTotals.ntPay,
+                otPay: nonSemiTotals.otPay + semiTotals.otPay + nonStandardTotals.otPay,
+                dtPay: nonSemiTotals.dtPay + semiTotals.dtPay + nonStandardTotals.dtPay,
             },
-            semiTotals
+            semiTotals,
+            nonStandardTotals
         };
     }, [filteredData, rawTimesheets, clientRates, employees, selectedEmpNo, selectedTsNo, selectedClientId, selectedClientName, selectedUnknownsOnly, timesheetTab, startDate, endDate]);
 
@@ -854,7 +889,7 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
                                                                 <span className="text-slate-400 mr-0.5 text-[10px]">R</span>
                                                                 {cellVal.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                             </span>
-                                                          ) : column.id === 'ntHrs' && row.shiftType === 'Semi' && cellVal >= 45 ? (
+                                                           ) : column.id === 'ntHrs' && row.shiftType === 'Semi' && (row.semi_weekly_hours || '').toString().trim() !== 'n/s' && cellVal >= 45 ? (
                                                               <span className="text-red-600 font-semibold">{cellVal.toFixed(2)}</span>
                                                           ) : (
                                                               cellVal.toFixed(2)

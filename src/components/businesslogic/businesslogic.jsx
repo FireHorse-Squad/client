@@ -68,8 +68,8 @@ const isPublicHoliday = (dateStr, publicHolidays) => {
 };
 
 export const calculateSemiWeeklySummary = (semiTimesheets, clientRates, employees, publicHolidays = [], weeklyHours = 45) => {
-    const regularTimesheets = semiTimesheets.filter((ts) => ts.semi_weekly_hours !== "non-standard");
-    const nightShiftTimesheets = semiTimesheets.filter((ts) => ts.semi_weekly_hours === "non-standard");
+    const regularTimesheets = semiTimesheets.filter((ts) => ts.semi_weekly_hours !== "n/s");
+    const nightShiftTimesheets = semiTimesheets.filter((ts) => ts.semi_weekly_hours === "n/s");
 
     const groups = {};
 
@@ -344,7 +344,7 @@ export const calculateBatchExportData = (timesheets, clientRates, employees = []
     const semiTimesheets = timesheets.filter((ts) => ts.shift_type === "Semi");
     const nonSemiTimesheets = timesheets.filter((ts) => ts.shift_type !== "Semi");
 
-    const regularSemiWeeklyHoursSet = new Set(semiTimesheets.filter((ts) => ts.semi_weekly_hours !== "non-standard").map((ts) => ts.semi_weekly_hours).filter(Boolean));
+    const regularSemiWeeklyHoursSet = new Set(semiTimesheets.filter((ts) => ts.semi_weekly_hours !== "n/s").map((ts) => ts.semi_weekly_hours).filter(Boolean));
     const weeklyHours = regularSemiWeeklyHoursSet.size === 1 ? parseFloat([...regularSemiWeeklyHoursSet][0]) : 45;
 
     const semiRows = calculateSemiWeeklySummary(semiTimesheets, clientRates, employees, publicHolidays, weeklyHours).flatMap((summary) => {
@@ -605,7 +605,7 @@ export const calculateEmployeeData = (timesheets, clientRates, employees) => {
                         overTimeHours = netHours;
                         overTimePay = netHours * rate.ot_1_5_rate;
                     } else {
-                        const isNightShiftSemi = timesheet.shift_type === "Semi" && timesheet.semi_weekly_hours === "non-standard";
+                        const isNightShiftSemi = timesheet.shift_type === "Semi" && timesheet.semi_weekly_hours === "n/s";
                         const netHours = isNightShiftSemi ? totalHours : (totalHours - getLunch());
                         if (isAdHoc) {
                             normalTime = Math.min(netHours, rate.hrs_pd);
