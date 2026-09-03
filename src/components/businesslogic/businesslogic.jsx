@@ -14,7 +14,7 @@ const getAdjustedDate = (date) => {
     return adjusted.toISOString().split("T")[0];
 };
 
-const findRate = (clientRates, clientId, occupation) => {
+export const findRate = (clientRates, clientId, occupation) => {
     const tsClientId = clientId?.toString().trim().toUpperCase();
     const tsOccupationRaw = occupation?.toString().trim() || "";
     const tsOccupation = tsOccupationRaw.endsWith("2.0") ? tsOccupationRaw.slice(0, -3) : tsOccupationRaw;
@@ -22,12 +22,12 @@ const findRate = (clientRates, clientId, occupation) => {
     let rate = clientRates.find(
         (r) =>
             r.client_id?.toString().trim().toUpperCase() === tsClientId &&
-            r.occupation?.toString().trim() === tsOccupation
+            r.occupation?.toString().trim().toUpperCase() === tsOccupation.toUpperCase()
     );
 
     if (!rate) {
         const clientRatesList = clientRates.filter(r => r.client_id?.toString().trim().toUpperCase() === tsClientId);
-        rate = clientRatesList.find((r) => r.lookup?.toString().trim() === tsOccupation);
+        rate = clientRatesList.find((r) => r.lookup?.toString().trim().toUpperCase() === tsOccupation.toUpperCase());
     }
 
     if (!rate) {

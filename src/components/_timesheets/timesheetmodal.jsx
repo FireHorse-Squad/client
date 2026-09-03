@@ -16,12 +16,19 @@ import Alert from "@mui/material/Alert";
 import api from "../../utils/api";
 import { calculateSemiWeeklySummary } from "../businesslogic/businesslogic";
 
-const getAdjustedDate = (date) => {
-    const adjusted = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-    return adjusted.toISOString().split("T")[0];
-};
+    const getAdjustedDate = (date) => {
+        const adjusted = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+        return adjusted.toISOString().split("T")[0];
+    };
 
-const initialFormData = {
+    const getDayName = (dateStr) => {
+        if (!dateStr) return "";
+        const date = new Date(dateStr + "T00:00:00");
+        const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+        return days[date.getDay()] || "";
+    };
+
+    const initialFormData = {
     timesheet_number: "",
     client_name: "",
     timesheet_date: getAdjustedDate(new Date()),
@@ -653,6 +660,9 @@ const initialFormData = {
                             <div className="flex flex-col">
                                 <label className="block text-[10px] font-bold text-blue-600 uppercase mb-1">Timesheet Date</label>
                                 <input type="date" name="timesheet_date" value={formData.timesheet_date} onChange={handleChange} required className="w-full p-2 border border-blue-200 rounded-md focus:ring-2 focus:ring-blue-500 outline-none" />
+                                {formData.timesheet_date && (
+                                    <span className="text-[10px] font-semibold text-green-600 mt-1">{getDayName(formData.timesheet_date)}</span>
+                                )}
                             </div>
                             <div className="flex flex-col" ref={clientSearchWrapperRef}>
                                 <label className="block text-[10px] font-bold text-blue-600 uppercase mb-1">Client</label>

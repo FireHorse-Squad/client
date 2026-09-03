@@ -5,7 +5,7 @@ import { onDataChange } from '../../utils/dataSync';
 import { Pencil, Trash2, CheckSquare, Square, Archive, RotateCcw } from 'lucide-react';
 import BulkDeleteModal from '../common/BulkDeleteModal';
 import DateRangePicker from '../common/DateRangePicker';
-import { calculateSemiWeeklySummary } from '../businesslogic/businesslogic';
+import { calculateSemiWeeklySummary, findRate } from '../businesslogic/businesslogic';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 
@@ -48,30 +48,7 @@ const calculateRow = (timesheet, clientRates, employees) => {
     let rate = null;
 
     if (timesheet.shift_type !== 'Task') {
-        const tsClientId = timesheet.client_id?.toString().trim().toUpperCase();
-        const tsOccupationRaw = timesheet.occupation?.toString().trim() || "";
-        const tsOccupation = tsOccupationRaw.endsWith("2.0") ? tsOccupationRaw.slice(0, -3) : tsOccupationRaw;
-
-        rate = clientRates.find(
-            (r) =>
-                r.client_id?.toString().trim().toUpperCase() === tsClientId &&
-                r.occupation?.toString().trim() === tsOccupation
-        );
-
-        if (!rate) {
-            const clientRatesList = clientRates.filter(r => r.client_id?.toString().trim().toUpperCase() === tsClientId);
-            rate = clientRatesList.find(
-                (r) =>
-                    r.lookup?.toString().trim() === tsOccupation
-            );
-        }
-
-        if (!rate) {
-            rate = clientRates.find(
-                (r) =>
-                    r.client_id?.toString().trim().toUpperCase() === tsClientId
-            );
-        }
+        rate = findRate(clientRates, timesheet.client_id, timesheet.occupation);
     }
 
     let totalHours = 0;

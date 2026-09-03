@@ -4,7 +4,7 @@ import { FileText, ChevronDown, RefreshCw, ChevronLeft, ChevronRight } from "luc
 import html2pdf from "html2pdf.js";
 import api from "../utils/api";
 import { onDataChange } from "../utils/dataSync";
-import { calculateSemiWeeklySummary } from "../components/businesslogic/businesslogic";
+import { calculateSemiWeeklySummary, findRate } from "../components/businesslogic/businesslogic";
 import { useAuth } from "../context/AuthContext";
 
 const getAdjustedDate = (date) => {
@@ -127,16 +127,11 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
                 totalHours = parseFloat(timesheet.units) || 0;
             }
 
+            const matchedRate = findRate(clientRates, timesheet.client_id, timesheet.occupation);
+
             const tsOccupationRaw = timesheet.occupation || "";
             const baseOccupation = tsOccupationRaw.endsWith("2.0") ? tsOccupationRaw.slice(0, -3) : tsOccupationRaw;
             const occupation = baseOccupation || "General Worker";
-
-            const clientRatesList = clientRates.filter(
-                (r) => r.client_id?.toString().trim().toUpperCase() === timesheet.client_id?.toString().trim().toUpperCase()
-            );
-            let matchedRate = clientRatesList.find((r) => r.occupation?.toString().trim() === occupation) ||
-                clientRatesList.find((r) => r.lookup?.toString().trim() === occupation) ||
-                clientRatesList[0];
 
             if (isBiometric) {
                 if (txCode === 1921 || txCode === 1922) {
@@ -247,7 +242,7 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
 
         const semiTsNumbersByGroup = {};
         semiTimesheets.forEach((ts) => {
-            const groupKey = `${ts.co_number}|${ts.occupation}`;
+            const groupKey = `${ts.co_number}|${ts.client_id}|${ts.occupation}`;
             if (!semiTsNumbersByGroup[groupKey]) {
                 semiTsNumbersByGroup[groupKey] = new Set();
             }
@@ -256,22 +251,8 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
             }
         });
         allSummaries.forEach((summary) => {
-            const groupKey = `${summary.co_number}|${summary.occupation}`;
-            const fullRate =
-                clientRates.find(
-                    (r) =>
-                        r.client_id?.toString().trim().toUpperCase() === summary.client_id?.toString().trim().toUpperCase() &&
-                        r.occupation?.toString().trim() === summary.occupation
-                ) ||
-                clientRates.find(
-                    (r) =>
-                        r.client_id?.toString().trim().toUpperCase() === summary.client_id?.toString().trim().toUpperCase() &&
-                        r.lookup?.toString().trim() === summary.occupation
-                ) ||
-                clientRates.find(
-                    (r) =>
-                        r.client_id?.toString().trim().toUpperCase() === summary.client_id?.toString().trim().toUpperCase()
-                );
+            const groupKey = `${summary.co_number}|${summary.client_id}|${summary.occupation}`;
+            const fullRate = findRate(clientRates, summary.client_id, summary.occupation);
             const tsNumbersList = semiTsNumbersByGroup[groupKey] ? [...semiTsNumbersByGroup[groupKey]] : [];
             const representativeTsNumber = tsNumbersList.length === 1 ? tsNumbersList[0] : (tsNumbersList[0] || "");
             if (!data[groupKey]) {
@@ -661,7 +642,7 @@ export default function CostingSchedule() {
                 "Timesheet No": entry.tsNumber || "",
                 "Employee No": entry.empNo || "",
                 "Client Name": clientName,
-                "Cost Centre": entry.client_id || "",
+                "Cost Centre": entry.client_id == null ? "" : entry.client_id.toString(),
                 Occupation: entry.occupation || "",
                 Type: type,
                 Hours: parseFloat(hours.toFixed(2)),

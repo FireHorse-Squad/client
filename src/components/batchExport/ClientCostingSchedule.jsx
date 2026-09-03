@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState } from "react";
 import { Download } from "lucide-react";
 import html2pdf from "html2pdf.js";
-import { calculateSemiWeeklySummary } from "../businesslogic/businesslogic";
+import { calculateSemiWeeklySummary, findRate } from "../businesslogic/businesslogic";
 
 const getAdjustedDate = (date) => {
     if (!date) return "";
@@ -76,38 +76,7 @@ const processNonSemiTimesheets = (clientTimesheets, rates) => {
         const adjustedDate = getAdjustedDate(new Date(timesheet.timesheet_date));
         const dayOfWeek = getDayOfWeek(adjustedDate);
 
-        const tsOccupationRaw = timesheet.occupation || "";
-        const tsOccupation = tsOccupationRaw.endsWith("2.0") ? tsOccupationRaw.slice(0, -3) : tsOccupationRaw;
-
-        let rate = rates.find(
-            (r) =>
-                r.client_id?.toString().trim().toUpperCase() === timesheet.client_id?.toString().trim().toUpperCase() &&
-                r.occupation?.toString().trim() === tsOccupation,
-        );
-
-        if (!rate) {
-            const clientRatesList = rates.filter(r => r.client_id?.toString().trim().toUpperCase() === timesheet.client_id?.toString().trim().toUpperCase());
-            rate = clientRatesList.find(
-                (r) =>
-                    r.lookup?.toString().trim() === tsOccupation
-            );
-        }
-
-        if (!rate) {
-            const txCode = parseInt(timesheet.transaction_code, 10);
-            if (txCode === 1921 || txCode === 1922) {
-                rate = rates.find(
-                    (r) =>
-                        r.ot_2_0_rate && parseFloat(r.ot_2_0_rate) > 0
-                );
-            }
-            if (!rate) {
-                rate = rates.find(
-                    (r) =>
-                        r.client_id?.toString().trim().toUpperCase() === timesheet.client_id?.toString().trim().toUpperCase()
-                );
-            }
-        }
+        const rate = findRate(rates, timesheet.client_id, timesheet.occupation);
 
         const isAdHoc = timesheet.shift_type === "Ad-Hoc" || timesheet.shift_type === "Adhoc";
         const isBiometric = timesheet.shift_type !== "Task" && timesheet.total_hours != null;
