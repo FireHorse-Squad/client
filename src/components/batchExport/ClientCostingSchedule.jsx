@@ -216,6 +216,28 @@ const processNonSemiTimesheets = (clientTimesheets, rates) => {
                 sun: dayOfWeek.toLowerCase() === "sun" ? doubleTimeHours : 0,
             });
         }
+
+        if (normalTime === 0 && overTimeHours === 0 && doubleTimeHours === 0 && isBiometric) {
+            const ntRate = parseFloat(rate?.nt_hourly_rate) || 0;
+            const ntInvoiceRate = parseFloat(rate?.nt_invoice_rate) || 0;
+
+            data.push({
+                co_number: timesheet.co_number,
+                date: adjustedDate,
+                occupation: occupation,
+                timeType: "NT",
+                rate: ntRate,
+                invoiceRate: ntInvoiceRate,
+                [dayOfWeek.toLowerCase()]: 0,
+                mon: 0,
+                tue: 0,
+                wed: 0,
+                thu: 0,
+                fri: 0,
+                sat: 0,
+                sun: 0,
+            });
+        }
     });
 
     return data;
@@ -338,6 +360,27 @@ const processTimesheetData = (timesheets, clientRates, clientId, employees = [],
                         sat: 0,
                         sun: 0,
                         _weeklyTotal: summary.doubleTime,
+                    });
+                }
+
+                if (summary.normalTime === 0 && summary.overTime === 0 && summary.doubleTime === 0) {
+                    data.push({
+                        id: `${summary.co_number}-${summary.weekStart}-NT`,
+                        co_number: summary.co_number,
+                        date: summary.weekStart,
+                        occupation: summary.occupation,
+                        timeType: "NT",
+                        rate: summary.rate,
+                        invoiceRate: parseFloat(summary.rate?.nt_invoice_rate || 0),
+                        employeeName: summary.employeeName,
+                        mon: 0,
+                        tue: 0,
+                        wed: 0,
+                        thu: 0,
+                        fri: 0,
+                        sat: 0,
+                        sun: 0,
+                        _weeklyTotal: 0,
                     });
                 }
             });

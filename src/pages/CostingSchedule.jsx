@@ -142,7 +142,7 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
                             ? parseFloat(timesheet.actual_lunch_hours)
                             : parseFloat(matchedRate?.deduct_lunch_hour) || 0;
                     doubleTimeHours = totalHours - lunchDeduction;
-                } else if (txCode === 1920 && matchedRate) {
+                } else if (txCode === 1920) {
                     const lunchDeduction =
                         timesheet.actual_lunch_hours !== null &&
                         timesheet.actual_lunch_hours !== undefined &&
@@ -197,6 +197,10 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
             if (normalTime > 0) types.push({ type: "NT", hours: normalTime });
             if (overTimeHours > 0) types.push({ type: "OT", hours: overTimeHours });
             if (doubleTimeHours > 0) types.push({ type: "DT", hours: doubleTimeHours });
+
+            if (types.length === 0 && timesheet.shift_type !== "Task") {
+                types.push({ type: "NT", hours: 0 });
+            }
 
             types.forEach(({ type, hours }) => {
                 const groupKey = `${timesheet.timesheet_number || ""}|${timesheet.client_id || ""}|${occupation}|${type}`;
@@ -298,6 +302,10 @@ if (summary.normalTime > 0) {
                     entry.days.add(d);
                 });
                 entry.DT.count += 1;
+            }
+
+            if (summary.normalTime === 0 && summary.overTime === 0 && summary.doubleTime === 0) {
+                entry.NT.count += 1;
             }
         });
     };

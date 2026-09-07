@@ -31,9 +31,7 @@ export const findRate = (clientRates, clientId, occupation) => {
     }
 
     if (!rate) {
-        rate = clientRates.find(
-            (r) => r.client_id?.toString().trim().toUpperCase() === tsClientId
-        );
+        return null;
     }
 
     return rate;
@@ -93,7 +91,6 @@ export const calculateSemiWeeklySummary = (semiTimesheets, clientRates, employee
 
     regularTimesheets.forEach((ts) => {
         const rate = findRate(clientRates, ts.client_id, ts.occupation);
-        if (!rate) return;
         const empNo = ts.co_number;
         const weekKey = getWeekKey(ts.timesheet_date);
         const txCode = (ts.transaction_code || "").toString().trim();
@@ -131,9 +128,9 @@ export const calculateSemiWeeklySummary = (semiTimesheets, clientRates, employee
 
     const regularSummaries = Object.values(groups)
         .map((g) => {
-            const normalTimeRate = parseFloat(g.rate.nt_hourly_rate) || 0;
-            const otRate = parseFloat(g.rate.ot_1_5_rate) || 0;
-            const dtRate = parseFloat(g.rate.ot_2_0_rate) || 0;
+            const normalTimeRate = parseFloat(g.rate?.nt_hourly_rate) || 0;
+            const otRate = parseFloat(g.rate?.ot_1_5_rate) || 0;
+            const dtRate = parseFloat(g.rate?.ot_2_0_rate) || 0;
 
             let normalTime = 0;
             let overTime = 0;
@@ -176,7 +173,6 @@ export const calculateSemiWeeklySummary = (semiTimesheets, clientRates, employee
 
     nightShiftTimesheets.forEach((ts) => {
         const rate = findRate(clientRates, ts.client_id, ts.occupation);
-        if (!rate) return;
         const empNo = ts.co_number;
         const weekKey = getWeekKey(ts.timesheet_date);
         const txCode = (ts.transaction_code || "").toString().trim();
@@ -212,7 +208,7 @@ export const calculateSemiWeeklySummary = (semiTimesheets, clientRates, employee
     });
 
     const nightShiftSummaries = Object.values(nightShiftGroups).map((g) => {
-        const normalTimeRate = parseFloat(g.rate.nt_hourly_rate) || 0;
+        const normalTimeRate = parseFloat(g.rate?.nt_hourly_rate) || 0;
         const normalTime = g.totalNetHours;
         const overTime = 0;
         const doubleTime = 0;
@@ -268,7 +264,6 @@ export const calculateBatchExportRow = (timesheet, clientRates) => {
     }
 
     const rate = findRate(clientRates, timesheet.client_id, timesheet.occupation);
-    if (!rate) return null;
 
     const txCode = parseInt(timesheet.transaction_code, 10);
     const isBiometric = timesheet.total_hours != null;
@@ -295,7 +290,9 @@ export const calculateBatchExportRow = (timesheet, clientRates) => {
             const ntRate = isAdHoc ? parseFloat(rate?.sub_total_a) || 0 : parseFloat(rate?.nt_hourly_rate) || 0;
             return buildBatchExportRow(timesheet, effectiveTxCode, netHours, ntRate, netHours * ntRate, timesheet.shift_type);
         }
-    } else {
+    }
+
+    if (!rate) return null;
         const totalHours = calculateHours(timesheet.start_time, timesheet.end_time);
         let normalTime = 0;
         let overTimeHours = 0;
@@ -337,8 +334,7 @@ export const calculateBatchExportRow = (timesheet, clientRates) => {
             rows.push(buildBatchExportRow(timesheet, effectiveTxCode, doubleTimeHours, dtRate, doubleTimeHours * dtRate, timesheet.shift_type));
         }
         return rows.length === 1 ? rows[0] : rows;
-    }
-};
+}
 
 export const calculateBatchExportData = (timesheets, clientRates, employees = [], publicHolidays = []) => {
     const semiTimesheets = timesheets.filter((ts) => ts.shift_type === "Semi");
