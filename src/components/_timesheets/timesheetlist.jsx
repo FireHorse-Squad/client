@@ -35,6 +35,13 @@ const LastPageIcon = () => (
 
 const HEADER_BG = '#2D328F';
 
+const formatTime = (t) => {
+    if (t === null || t === undefined || t === '') return '';
+    const str = t.toString();
+    const match = str.match(/(\d{1,2}):(\d{2})/);
+    return match ? `${match[1].padStart(2, '0')}:${match[2]}` : str;
+};
+
 const calculateHours = (timeIn, timeOut) => {
     const start = new Date(`1970-01-01T${timeIn}`);
     const end = new Date(`1970-01-01T${timeOut}`);
@@ -166,6 +173,8 @@ const calculateRow = (timesheet, clientRates, employees) => {
         txCode: timesheet.transaction_code || '',
         shiftType: timesheet.shift_type || '',
         occupation: timesheet.occupation || '',
+        start: formatTime(timesheet.start_time),
+        end: formatTime(timesheet.end_time),
         totalHrs: totalHours,
         ntHrs: ntHrs,
         otHrs: otHrs,
