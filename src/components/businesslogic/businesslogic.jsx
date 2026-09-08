@@ -113,6 +113,7 @@ export const calculateSemiWeeklySummary = (semiTimesheets, clientRates, employee
                 hasPublicHoliday: false,
                 hasSaturday: false,
                 daysWorked: 0,
+                timesheets: [],
             };
         } else if (ts.transaction_code) {
             groups[key].transactionCode = txCode;
@@ -121,6 +122,7 @@ export const calculateSemiWeeklySummary = (semiTimesheets, clientRates, employee
         const g = groups[key];
         g.totalNetHours += getNetHours(ts, rate);
         g.daysWorked += 1;
+        g.timesheets.push(ts);
         if (getDayOfWeek(ts.timesheet_date) === "Sat") g.hasSaturday = true;
         if (isPublicHoliday(ts.timesheet_date, publicHolidays))
             g.hasPublicHoliday = true;
@@ -128,7 +130,9 @@ export const calculateSemiWeeklySummary = (semiTimesheets, clientRates, employee
 
     const regularSummaries = Object.values(groups)
         .map((g) => {
-            const normalTimeRate = parseFloat(g.rate?.nt_hourly_rate) || 0;
+            const normalTimeRate = g.timesheets?.some((ts) => ts.shift_type === "Ad-Hoc" || ts.shift_type === "Adhoc")
+                ? parseFloat(g.rate?.sub_total_a) || 0
+                : parseFloat(g.rate?.nt_hourly_rate) || 0;
             const otRate = parseFloat(g.rate?.ot_1_5_rate) || 0;
             const dtRate = parseFloat(g.rate?.ot_2_0_rate) || 0;
 
@@ -195,6 +199,7 @@ export const calculateSemiWeeklySummary = (semiTimesheets, clientRates, employee
                 hasPublicHoliday: false,
                 hasSaturday: false,
                 daysWorked: 0,
+                timesheets: [],
             };
         }
 
@@ -202,13 +207,16 @@ export const calculateSemiWeeklySummary = (semiTimesheets, clientRates, employee
         const totalHours = ts.total_hours != null ? parseFloat(ts.total_hours) : calculateHours(ts.start_time, ts.end_time);
         g.totalNetHours += totalHours;
         g.daysWorked += 1;
+        g.timesheets.push(ts);
         if (getDayOfWeek(ts.timesheet_date) === "Sat") g.hasSaturday = true;
         if (isPublicHoliday(ts.timesheet_date, publicHolidays))
             g.hasPublicHoliday = true;
     });
 
     const nightShiftSummaries = Object.values(nightShiftGroups).map((g) => {
-        const normalTimeRate = parseFloat(g.rate?.nt_hourly_rate) || 0;
+        const normalTimeRate = g.timesheets?.some((ts) => ts.shift_type === "Ad-Hoc" || ts.shift_type === "Adhoc")
+            ? parseFloat(g.rate?.sub_total_a) || 0
+            : parseFloat(g.rate?.nt_hourly_rate) || 0;
         const normalTime = g.totalNetHours;
         const overTime = 0;
         const doubleTime = 0;
@@ -292,36 +300,35 @@ export const calculateBatchExportRow = (timesheet, clientRates) => {
         }
     }
 
-    if (!rate) return null;
-        const totalHours = calculateHours(timesheet.start_time, timesheet.end_time);
-        let normalTime = 0;
-        let overTimeHours = 0;
-        let doubleTimeHours = 0;
+    const totalHours = calculateHours(timesheet.start_time, timesheet.end_time);
+    let normalTime = 0;
+    let overTimeHours = 0;
+    let doubleTimeHours = 0;
 
-        const getLunch = () =>
-            timesheet.actual_lunch_hours !== null &&
-            timesheet.actual_lunch_hours !== undefined &&
-            timesheet.actual_lunch_hours !== ""
-                ? parseFloat(timesheet.actual_lunch_hours)
-                : parseFloat(rate.deduct_lunch_hour) || 0;
+    const getLunch = () =>
+        timesheet.actual_lunch_hours !== null &&
+        timesheet.actual_lunch_hours !== undefined &&
+        timesheet.actual_lunch_hours !== ""
+            ? parseFloat(timesheet.actual_lunch_hours)
+            : parseFloat(rate?.deduct_lunch_hour) || 0;
 
-        if (timesheet.isDoubleShift) {
-            normalTime = totalHours - getLunch();
+    if (timesheet.isDoubleShift) {
+        normalTime = totalHours - getLunch();
+    } else {
+        if (txCode === 1921 || txCode === 1922) {
+            doubleTimeHours = totalHours - getLunch();
+        } else if (txCode === 1920) {
+            overTimeHours = totalHours - getLunch();
         } else {
-            if (txCode === 1921 || txCode === 1922) {
-                doubleTimeHours = totalHours - getLunch();
-            } else if (txCode === 1920) {
-                overTimeHours = totalHours - getLunch();
-            } else {
-                const netHours = totalHours - getLunch();
-                normalTime = Math.min(netHours, rate.hrs_pd);
-                overTimeHours = Math.max(0, netHours - rate.hrs_pd);
-            }
+            const netHours = totalHours - getLunch();
+            normalTime = Math.min(netHours, parseFloat(rate?.hrs_pd) || 8);
+            overTimeHours = Math.max(0, netHours - (parseFloat(rate?.hrs_pd) || 8));
         }
+    }
 
-        const ntRate = isAdHoc ? parseFloat(rate.sub_total_a) || 0 : parseFloat(rate.nt_hourly_rate) || 0;
-        const otRate = parseFloat(rate.ot_1_5_rate) || 0;
-        const dtRate = parseFloat(rate.ot_2_0_rate) || 0;
+    const ntRate = isAdHoc ? parseFloat(rate?.sub_total_a) || 0 : parseFloat(rate?.nt_hourly_rate) || 0;
+    const otRate = parseFloat(rate?.ot_1_5_rate) || 0;
+    const dtRate = parseFloat(rate?.ot_2_0_rate) || 0;
 
         const rows = [];
         if (normalTime > 0) {
@@ -525,7 +532,6 @@ export const calculateEmployeeData = (timesheets, clientRates, employees) => {
     return timesheets
         .map((timesheet) => {
             const rate = findRate(clientRates, timesheet.client_id, timesheet.occupation);
-            if (!rate) return null;
 
             let normalTime = 0;
             let overTimeHours = 0;
@@ -538,27 +544,27 @@ export const calculateEmployeeData = (timesheets, clientRates, employees) => {
             const txCode = parseInt(timesheet.transaction_code, 10);
             const isAdHoc = timesheet.shift_type === "Ad-Hoc" || timesheet.shift_type === "Adhoc";
 
-    if (timesheet.shift_type === "Task") {
-        const totalUnits = parseFloat(timesheet.units) || 0;
-        const txCode = parseInt(timesheet.transaction_code, 10);
-        if (txCode === 1921 || txCode === 1922) {
-            doubleTimeHours = totalUnits;
-            doubleTimePay = totalUnits * (parseFloat(timesheet.rate) || 0);
-        } else if (txCode === 1920) {
-            overTimeHours = totalUnits;
-            overTimePay = totalUnits * (parseFloat(timesheet.rate) || 0);
-        } else {
-            normalTime = totalUnits;
-            normalTimePay = normalTime * (parseFloat(timesheet.rate) || 0);
-        }
-    } else if (isBiometric) {
+            if (timesheet.shift_type === "Task") {
+                const totalUnits = parseFloat(timesheet.units) || 0;
+                const txCode = parseInt(timesheet.transaction_code, 10);
+                if (txCode === 1921 || txCode === 1922) {
+                    doubleTimeHours = totalUnits;
+                    doubleTimePay = totalUnits * (parseFloat(timesheet.rate) || 0);
+                } else if (txCode === 1920) {
+                    overTimeHours = totalUnits;
+                    overTimePay = totalUnits * (parseFloat(timesheet.rate) || 0);
+                } else {
+                    normalTime = totalUnits;
+                    normalTimePay = normalTime * (parseFloat(timesheet.rate) || 0);
+                }
+            } else if (isBiometric) {
                 const biometricHours = parseFloat(timesheet.total_hours) || 0;
-        const lunchDeduction =
-            timesheet.actual_lunch_hours !== null &&
-            timesheet.actual_lunch_hours !== undefined &&
-            timesheet.actual_lunch_hours !== ""
-                ? parseFloat(timesheet.actual_lunch_hours)
-                : 0;
+                const lunchDeduction =
+                    timesheet.actual_lunch_hours !== null &&
+                    timesheet.actual_lunch_hours !== undefined &&
+                    timesheet.actual_lunch_hours !== ""
+                        ? parseFloat(timesheet.actual_lunch_hours)
+                        : 0;
                 const netHours = biometricHours - lunchDeduction;
 
                 if (txCode === 1921 || txCode === 1922) {
@@ -585,34 +591,34 @@ export const calculateEmployeeData = (timesheets, clientRates, employees) => {
                     timesheet.actual_lunch_hours !== undefined &&
                     timesheet.actual_lunch_hours !== ""
                         ? parseFloat(timesheet.actual_lunch_hours)
-                        : parseFloat(rate.deduct_lunch_hour) || 0;
+                        : parseFloat(rate?.deduct_lunch_hour) || 0;
 
                 if (timesheet.isDoubleShift) {
                     const netHours = totalHours - getLunch();
                     normalTime = netHours;
-                    normalTimePay = netHours * (isAdHoc ? rate.sub_total_a : rate.nt_hourly_rate);
+                    normalTimePay = netHours * (isAdHoc ? parseFloat(rate?.sub_total_a) || 0 : parseFloat(rate?.nt_hourly_rate) || 0);
                 } else {
                     if (txCode === 1921 || txCode === 1922) {
                         const netHours = totalHours - getLunch();
                         doubleTimeHours = netHours;
-                        doubleTimePay = netHours * rate.ot_2_0_rate;
+                        doubleTimePay = netHours * (parseFloat(rate?.ot_2_0_rate) || 0);
                     } else if (txCode === 1920) {
                         const netHours = totalHours - getLunch();
                         overTimeHours = netHours;
-                        overTimePay = netHours * rate.ot_1_5_rate;
+                        overTimePay = netHours * (parseFloat(rate?.ot_1_5_rate) || 0);
                     } else {
                         const isNightShiftSemi = timesheet.shift_type === "Semi" && timesheet.semi_weekly_hours === "n/s";
                         const netHours = isNightShiftSemi ? totalHours : (totalHours - getLunch());
                         if (isAdHoc) {
-                            normalTime = Math.min(netHours, rate.hrs_pd);
-                            overTimeHours = Math.max(0, netHours - rate.hrs_pd);
+                            normalTime = Math.min(netHours, parseFloat(rate?.hrs_pd) || 8);
+                            overTimeHours = Math.max(0, netHours - (parseFloat(rate?.hrs_pd) || 8));
                             normalTimePay = normalTime * (parseFloat(rate?.sub_total_a) || 0);
-                            overTimePay = overTimeHours * rate.ot_1_5_rate;
+                            overTimePay = overTimeHours * (parseFloat(rate?.ot_1_5_rate) || 0);
                         } else {
-                            normalTime = isNightShiftSemi ? netHours : Math.min(netHours, rate.hrs_pd);
-                            overTimeHours = isNightShiftSemi ? 0 : Math.max(0, netHours - rate.hrs_pd);
-                            normalTimePay = normalTime * rate.nt_hourly_rate;
-                            overTimePay = overTimeHours * rate.ot_1_5_rate;
+                            normalTime = isNightShiftSemi ? netHours : Math.min(netHours, parseFloat(rate?.hrs_pd) || 8);
+                            overTimeHours = isNightShiftSemi ? 0 : Math.max(0, netHours - (parseFloat(rate?.hrs_pd) || 8));
+                            normalTimePay = normalTime * (parseFloat(rate?.nt_hourly_rate) || 0);
+                            overTimePay = overTimeHours * (parseFloat(rate?.ot_1_5_rate) || 0);
                         }
                     }
                 }

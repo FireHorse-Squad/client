@@ -4,6 +4,7 @@ import TimesheetModal from "../components/_timesheets/timesheetmodal";
 import { Upload, FileSpreadsheet, Fingerprint, Plus, Pencil, Trash2, Download } from 'lucide-react';
 import api from '../utils/api';
 import { dispatchDataChange } from '../utils/dataSync';
+import { useAuth } from '../context/AuthContext';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
@@ -11,6 +12,7 @@ import DialogContentText from '@mui/material/DialogContentText';
 import DialogActions from '@mui/material/DialogActions';
 import Button from '@mui/material/Button';
 import * as XLSX from 'xlsx';
+import ReportModal from '../components/ReportModal';
 
 export default function Timesheets() {
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -23,8 +25,11 @@ export default function Timesheets() {
     const [deleting, setDeleting] = useState(false);
     const [exportData, setExportData] = useState([]);
     const [allTimesheets, setAllTimesheets] = useState([]);
+    const [reportOpen, setReportOpen] = useState(false);
+    const [reportData, setReportData] = useState([]);
     const csvInputRef = useRef(null);
     const bioInputRef = useRef(null);
+    const { user } = useAuth();
 
     const handleSave = () => {
         setRefreshKey((prev) => prev + 1);
@@ -166,6 +171,11 @@ export default function Timesheets() {
         }
     };
 
+    const handleOpenReport = () => {
+        setReportData(exportData || []);
+        setReportOpen(true);
+    };
+
     return (
         <div className="space-y-8 animate-in fade-in duration-200">
             <div className="bg-white rounded-2xl border border-slate-200/80 p-4 sm:p-6 md:p-8 mt-2.5">
@@ -208,6 +218,16 @@ export default function Timesheets() {
                             <Download className="w-4 h-4 text-sky-600" strokeWidth={2.2} />
                             <span>Export to Excel</span>
                         </button>
+                        {(user?.role === 'Cape Town Admin' || user?.role === 'Account Manager') && (
+                            <button
+                                onClick={handleOpenReport}
+                                disabled={importing}
+                                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 bg-blue-50 text-blue-700 hover:bg-blue-100/80 active:scale-[0.98] border border-blue-200/80 hover:border-blue-300 shadow-xs disabled:opacity-50"
+                            >
+                                <FileSpreadsheet className="w-4 h-4 text-blue-600" strokeWidth={2.2} />
+                                <span>Report</span>
+                            </button>
+                        )}
                         <button
                             onClick={() => { setEditingRow(null); setIsModalOpen(true); }}
                             className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 bg-amber-500 text-white hover:bg-amber-600 active:scale-[0.98] border border-amber-600/10 shadow-sm hover:shadow-md"
@@ -300,6 +320,11 @@ export default function Timesheets() {
                     </Button>
                 </DialogActions>
             </Dialog>
+            <ReportModal
+                isOpen={reportOpen}
+                onClose={() => setReportOpen(false)}
+                timesheets={reportData}
+            />
         </div>
     );
 }

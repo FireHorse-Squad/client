@@ -134,7 +134,7 @@ const calculateRow = (timesheet, clientRates, employees) => {
                 } else {
                     ntHrs = Math.min(netHours, parseFloat(rate?.hrs_pd) || 8);
                     otHrs = Math.max(0, netHours - (parseFloat(rate?.hrs_pd) || 8));
-                    ntPay = ntHrs * (parseFloat(rate?.nt_hourly_rate) || 0);
+                    ntPay = ntHrs * (isAdHoc ? (parseFloat(rate?.sub_total_a) || 0) : (parseFloat(rate?.nt_hourly_rate) || 0));
                     otPay = otHrs * (parseFloat(rate?.ot_1_5_rate) || 0);
                 }
             }
@@ -142,6 +142,18 @@ const calculateRow = (timesheet, clientRates, employees) => {
     }
     const employee = employees.find(emp => emp.co_number?.toString().trim() === timesheet.co_number?.toString().trim());
     const employeeName = employee ? employee.full_name : 'Unknown';
+
+    const isAdHoc = timesheet.shift_type === "Ad-Hoc" || timesheet.shift_type === "Adhoc";
+    const effectiveRate = timesheet.shift_type === 'Task' ? null : rate;
+    const ntRate = effectiveRate ? (isAdHoc ? (parseFloat(effectiveRate.sub_total_a) || 0) : (parseFloat(effectiveRate.nt_hourly_rate) || 0)) : 0;
+    const otRate = effectiveRate ? (parseFloat(effectiveRate.ot_1_5_rate) || 0) : 0;
+    const dtRate = effectiveRate ? (parseFloat(effectiveRate.ot_2_0_rate) || 0) : 0;
+    const ntInvoiceRate = effectiveRate ? (parseFloat(effectiveRate.nt_invoice_rate) || 0) : 0;
+    const otInvoiceRate = effectiveRate ? (parseFloat(effectiveRate.ot_1_5_invoice_rate) || 0) : 0;
+    const dtInvoiceRate = effectiveRate ? (parseFloat(effectiveRate.ot_2_0_invoice_rate) || 0) : 0;
+    const ntInvoicePay = ntHrs * ntInvoiceRate;
+    const otInvoicePay = otHrs * otInvoiceRate;
+    const dtInvoicePay = dtHrs * dtInvoiceRate;
 
     return {
         id: timesheet.id,
@@ -154,8 +166,6 @@ const calculateRow = (timesheet, clientRates, employees) => {
         txCode: timesheet.transaction_code || '',
         shiftType: timesheet.shift_type || '',
         occupation: timesheet.occupation || '',
-        start: timesheet.start_time || '',
-        end: timesheet.end_time || '',
         totalHrs: totalHours,
         ntHrs: ntHrs,
         otHrs: otHrs,
@@ -164,6 +174,15 @@ const calculateRow = (timesheet, clientRates, employees) => {
         otPay: otPay,
         dtPay: dtPay,
         semi_weekly_hours: timesheet.semi_weekly_hours || '',
+        ntRate,
+        otRate,
+        dtRate,
+        ntInvoiceRate,
+        otInvoiceRate,
+        dtInvoiceRate,
+        ntInvoicePay,
+        otInvoicePay,
+        dtInvoicePay,
     };
 };
 
