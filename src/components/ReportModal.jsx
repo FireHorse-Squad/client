@@ -243,21 +243,21 @@ export default function ReportModal({ isOpen, onClose, timesheets = [] }) {
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-            <div className="w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-2xl bg-white shadow-2xl">
-                <div className="flex items-center justify-between border-b p-6">
-                    <h2 className="text-2xl font-bold text-slate-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-800/75">
+            <div className="relative w-full max-w-4xl max-h-[95vh] sm:max-h-[90vh] bg-white rounded-xl shadow-2xl p-4 sm:p-6 md:p-8 border-t-8 border-[#1742c4] flex flex-col overflow-hidden">
+                <div className="flex-shrink-0 flex justify-between items-center pb-4 border-b border-gray-100 mb-6">
+                    <h2 className="text-2xl font-bold text-[#1742c4] flex items-center gap-2">
                         Employee Costing Report
                     </h2>
                     <button
                         onClick={onClose}
-                        className="rounded-lg p-2 hover:bg-slate-100"
+                        className="text-[#F5B52A] hover:text-red-500 transition-colors p-1 focus:ring-2 focus:ring-blue-500 outline-none"
                     >
                         ✕
                     </button>
                 </div>
 
-                <div className="max-h-[65vh] overflow-y-auto p-6">
+                <div className="flex-1 overflow-y-auto">
                     <div className="mb-6">
                         <label className="flex items-center gap-2 cursor-pointer">
                             <input
@@ -271,42 +271,44 @@ export default function ReportModal({ isOpen, onClose, timesheets = [] }) {
                     </div>
 
                     <div className={`mb-6 ${isHeadcountMode ? 'opacity-40 pointer-events-none' : ''}`}>
-                        <div className="flex items-center justify-between mb-3">
-                            <h3 className="text-lg font-bold">Report Columns</h3>
-                            <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={allSelected}
-                                    onChange={toggleAll}
-                                    disabled={isHeadcountMode}
-                                    className="h-4 w-4 accent-indigo-600"
-                                />
-                                <span className="text-sm font-semibold text-slate-700">Select All</span>
-                            </label>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                            {REPORT_COLUMNS.map((column) => (
-                                <label
-                                    key={column.key}
-                                    className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3 cursor-pointer"
-                                >
+                        <div className="bg-blue-50/50 p-4 rounded-lg border border-blue-100">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-sm font-bold text-blue-600 uppercase">Report Columns</h3>
+                                <label className="flex items-center gap-2 cursor-pointer">
                                     <input
                                         type="checkbox"
-                                        checked={selectedColumns.includes(column.key)}
-                                        onChange={() => toggleColumn(column.key)}
+                                        checked={allSelected}
+                                        onChange={toggleAll}
                                         disabled={isHeadcountMode}
                                         className="h-4 w-4 accent-indigo-600"
                                     />
-                                    <span className="text-sm font-medium text-slate-700">
-                                        {column.label}
-                                    </span>
+                                    <span className="text-sm font-semibold text-slate-700">Select All</span>
                                 </label>
-                            ))}
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                {REPORT_COLUMNS.map((column) => (
+                                    <label
+                                        key={column.key}
+                                        className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-3 cursor-pointer hover:border-blue-300 hover:bg-blue-50/50 transition-colors"
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedColumns.includes(column.key)}
+                                            onChange={() => toggleColumn(column.key)}
+                                            disabled={isHeadcountMode}
+                                            className="h-4 w-4 accent-indigo-600"
+                                        />
+                                        <span className="text-sm font-medium text-slate-700">
+                                            {column.label}
+                                        </span>
+                                    </label>
+                                ))}
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <div className="flex justify-end gap-3 border-t p-6">
+                <div className="flex justify-end gap-3 border-t border-gray-100 p-6">
                     <button
                         onClick={onClose}
                         className="rounded-lg border px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
