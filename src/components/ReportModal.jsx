@@ -266,7 +266,7 @@ export default function ReportModal({ isOpen, onClose, timesheets = [] }) {
                                 onChange={(e) => setIsHeadcountMode(e.target.checked)}
                                 className="h-4 w-4 accent-indigo-600"
                             />
-                            <span className="text-sm font-medium text-slate-700">Show Headcount Report</span>
+                            <span className="text-sm font-medium text-slate-700">Headcount Report</span>
                         </label>
                     </div>
 
