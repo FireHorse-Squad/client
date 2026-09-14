@@ -130,7 +130,7 @@ export default function Timesheets() {
 
             const headers = [
                 'TIMESHEET NO', 'DATE', 'CLIENT ID', 'CLIENT NAME', 'EMP NO',
-                'EMPLOYEE NAME', 'TX CODE', 'SHIFT TYPE', 'OCCUPATION',
+                'EMPLOYEE NAME', 'TX CODE', 'SHIFT TYPE', 'OCCUPATION', 'HEADCOUNT',
                 'START', 'END', 'TOTAL HRS', 'NT HRS', 'OT HRS', 'DT HRS',
                 'NT PAY(R)', 'OT PAY(R)', 'DT PAY(R)'
             ];
@@ -145,6 +145,7 @@ export default function Timesheets() {
                 row.txCode || '',
                 row.shiftType || '',
                 row.occupation || '',
+                row.headcount || 1,
                 row.start || '',
                 row.end || '',
                 row.totalHrs || 0,

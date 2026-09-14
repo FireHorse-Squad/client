@@ -50,6 +50,16 @@ const calculateHours = (timeIn, timeOut) => {
     return diff;
 };
 
+const getWeekKey = (dateStr) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '';
+    const day = d.getDay();
+    const diff = day === 0 ? 6 : day - 1;
+    d.setDate(d.getDate() - diff);
+    return d.toISOString().split('T')[0];
+};
+
 const calculateRow = (timesheet, clientRates, employees) => {
     const isBiometric = (timesheet.shift_type !== 'Task' && timesheet.total_hours != null) || (timesheet.shift_type === 'Semi' && (timesheet.semi_weekly_hours || '').toString().trim() === 'n/s');
     let rate = null;
@@ -150,6 +160,10 @@ const calculateRow = (timesheet, clientRates, employees) => {
     const employee = employees.find(emp => emp.co_number?.toString().trim() === timesheet.co_number?.toString().trim());
     const employeeName = employee ? employee.full_name : 'Unknown';
 
+    const clientRate = clientRates.find(cr => cr.client_id?.toString().trim() === timesheet.client_id?.toString().trim());
+    const region = clientRate?.region || '';
+    const site = clientRate?.site || '';
+
     const isAdHoc = timesheet.shift_type === "Ad-Hoc" || timesheet.shift_type === "Adhoc";
     const effectiveRate = timesheet.shift_type === 'Task' ? null : rate;
     const ntRate = effectiveRate ? (isAdHoc ? (parseFloat(effectiveRate.sub_total_a) || 0) : (parseFloat(effectiveRate.nt_hourly_rate) || 0)) : 0;
@@ -166,6 +180,7 @@ const calculateRow = (timesheet, clientRates, employees) => {
         id: timesheet.id,
         timesheetNo: timesheet.timesheet_number || '',
         date: (timesheet.timesheet_date || '').toString().split(/[T\s]/)[0],
+        weekKey: getWeekKey(timesheet.timesheet_date),
         clientId: timesheet.client_id || '',
         clientName: timesheet.client_name || '',
         empNo: timesheet.co_number || '',
@@ -192,6 +207,9 @@ const calculateRow = (timesheet, clientRates, employees) => {
         ntInvoicePay,
         otInvoicePay,
         dtInvoicePay,
+        status: timesheet.status || '',
+        region,
+        site,
     };
 };
 
@@ -243,6 +261,7 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
     const [selectedClientName, setSelectedClientName] = useState("");
     const [selectedUnknownsOnly, setSelectedUnknownsOnly] = useState(false);
     const [timesheetTab, setTimesheetTab] = useState('active');
+    const [clerks, setClerks] = useState([]);
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
 
@@ -278,6 +297,17 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
         };
     }, [fetchData, refreshKey]);
 
+    useEffect(() => {
+        if (user?.role === 'Account Manager') {
+            api.get('/auth/users')
+                .then(res => {
+                    const wagesClerks = res.data.filter(u => u.role === 'Wages Clerk');
+                    setClerks(wagesClerks);
+                })
+                .catch(() => {});
+        }
+    }, [user]);
+
     const activeData = useMemo(() => {
         return rawTimesheets
             .filter(ts => ts.status !== 'archived')
@@ -290,7 +320,23 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
             .map(ts => calculateRow(ts, clientRates, employees));
     }, [rawTimesheets, clientRates, employees]);
 
-    const currentData = timesheetTab === 'active' ? activeData : archivedData;
+    const clerkDataMap = useMemo(() => {
+        const map = {};
+        clerks.forEach(clerk => {
+            map[clerk.id] = rawTimesheets
+                .filter(ts => ts.user_id === clerk.id && ts.status !== 'archived')
+                .map(ts => calculateRow(ts, clientRates, employees));
+        });
+        return map;
+    }, [rawTimesheets, clientRates, employees, clerks]);
+
+    const isClerkTab = !['active', 'archived'].includes(timesheetTab);
+
+    const currentData = useMemo(() => {
+        if (timesheetTab === 'active') return activeData;
+        if (timesheetTab === 'archived') return archivedData;
+        return clerkDataMap[timesheetTab] || [];
+    }, [timesheetTab, activeData, archivedData, clerkDataMap]);
 
     const tsNumberOptions = useMemo(() => {
         const unique = [...new Set(currentData.map((r) => (r.timesheetNo || '').toString()).filter(Boolean))];
@@ -355,7 +401,21 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
                 return true;
             })
             : unknownsOnly;
-        return byDateRange;
+
+        const groupCounts = byDateRange.reduce((acc, r) => {
+            const key = r.clientId;
+            if (!acc[key]) acc[key] = new Set();
+            acc[key].add(r.empNo);
+            return acc;
+        }, {});
+
+        return byDateRange.map((r) => {
+            const empSet = groupCounts[r.clientId];
+            return {
+                ...r,
+                headcount: empSet ? empSet.size : 1,
+            };
+        });
     }, [currentData, selectedTsNo, selectedEmpNo, selectedClientId, selectedClientName, selectedUnknownsOnly, startDate, endDate]);
 
     useEffect(() => {
@@ -389,6 +449,7 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
         const filteredRaw = rawTimesheets.filter((ts) => {
             if (timesheetTab === 'active' && ts.status === 'archived') return false;
             if (timesheetTab === 'archived' && ts.status !== 'archived') return false;
+            if (isClerkTab && ts.user_id?.toString() !== timesheetTab) return false;
             if (selectedEmpNo && (ts.co_number || '').toString() !== selectedEmpNo) return false;
             if (selectedTsNo && (ts.timesheet_number || '').toString() !== selectedTsNo) return false;
             if (selectedClientId && (ts.client_id || '').toString() !== selectedClientId) return false;
@@ -459,7 +520,7 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
             semiTotals,
             nonStandardTotals
         };
-    }, [filteredData, rawTimesheets, clientRates, employees, selectedEmpNo, selectedTsNo, selectedClientId, selectedClientName, selectedUnknownsOnly, timesheetTab, startDate, endDate]);
+    }, [filteredData, rawTimesheets, clientRates, employees, selectedEmpNo, selectedTsNo, selectedClientId, selectedClientName, selectedUnknownsOnly, timesheetTab, startDate, endDate, isClerkTab]);
 
     const handlePageChange = (newPage) => {
         if (newPage >= 0 && newPage < totalPages) {
@@ -621,6 +682,19 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
                     >
                         Archived Timesheets
                     </button>
+                    {clerks.map(clerk => (
+                        <button
+                            key={clerk.id}
+                            onClick={() => { setTimesheetTab(clerk.id.toString()); setPage(0); setSelectedTsNo(''); setSelectedEmpNo(''); setSelectedClientId(''); setSelectedClientName(''); setSelectedUnknownsOnly(false); setStartDate(''); setEndDate(''); }}
+                            className={`pb-2 text-sm font-semibold transition ${
+                                timesheetTab === clerk.id.toString()
+                                    ? "border-b-4 border-[#1742c4] text-[#1742c4]"
+                                    : "text-slate-400 hover:text-slate-600"
+                            }`}
+                        >
+                            {clerk.full_name}
+                        </button>
+                    ))}
                 </div>
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
@@ -628,7 +702,7 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
                         Capture Timesheet
                     </h1>
                     <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                        {filteredData.length} {timesheetTab === 'active' ? 'active' : 'archived'} timesheet entries
+                        {filteredData.length} {timesheetTab === 'active' ? 'active' : timesheetTab === 'archived' ? 'archived' : 'captured'} timesheet entries
                     </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3 pb-4">
@@ -698,7 +772,7 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
                         {selectedIds.length} timesheet{selectedIds.length > 1 ? "s" : ""} selected
                     </span>
                     <div className="flex items-center gap-3">
-                        {timesheetTab === 'active' ? (
+                        {timesheetTab === 'active' || isClerkTab ? (
                             <>
                                 <button
                                     onClick={handleArchiveClick}
@@ -847,15 +921,7 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
                                                         className="px-4 py-3 text-xs border-r border-slate-200/60 text-center"
                                                     >
                                                         <div className="flex items-center justify-center gap-3">
-                                                            {timesheetTab === 'active' ? (
-                                                                <button
-                                                                    onClick={() => onDelete?.(row)}
-                                                                    className="text-red-500 hover:text-red-700 transition-colors"
-                                                                    title="Delete"
-                                                                >
-                                                                    <Trash2 className="w-4 h-4" />
-                                                                </button>
-                                                            ) : (
+                                                            {row.status === 'archived' ? (
                                                                 <>
                                                                     <button
                                                                         onClick={() => handleUnarchive(row.id)}
@@ -872,6 +938,14 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
                                                                         <Trash2 className="w-4 h-4" />
                                                                     </button>
                                                                 </>
+                                                            ) : (
+                                                                <button
+                                                                    onClick={() => onDelete?.(row)}
+                                                                    className="text-red-500 hover:text-red-700 transition-colors"
+                                                                    title="Delete"
+                                                                >
+                                                                    <Trash2 className="w-4 h-4" />
+                                                                </button>
                                                             )}
                                                         </div>
                                                     </td>
