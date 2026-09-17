@@ -1,7 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import TimesheetList from "../components/_timesheets/timesheetlist";
 import TimesheetModal from "../components/_timesheets/timesheetmodal";
-import { Upload, FileSpreadsheet, Fingerprint, Plus, Pencil, Trash2, Download } from 'lucide-react';
+import { Upload, FileSpreadsheet, Fingerprint, Plus, Pencil, Trash2, Download, Calendar } from 'lucide-react';
 import api from '../utils/api';
 import { dispatchDataChange } from '../utils/dataSync';
 import { useAuth } from '../context/AuthContext';
@@ -27,9 +27,38 @@ export default function Timesheets() {
     const [allTimesheets, setAllTimesheets] = useState([]);
     const [reportOpen, setReportOpen] = useState(false);
     const [reportData, setReportData] = useState([]);
+    const [todayKey, setTodayKey] = useState(() => {
+        const now = new Date();
+        const adjusted = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+        return adjusted.toISOString().split('T')[0];
+    });
     const csvInputRef = useRef(null);
     const bioInputRef = useRef(null);
     const { user } = useAuth();
+
+    useEffect(() => {
+        const interval = setInterval(() => {
+            const now = new Date();
+            const adjusted = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+            const newToday = adjusted.toISOString().split('T')[0];
+            setTodayKey(prev => {
+                if (prev !== newToday) return newToday;
+                return prev;
+            });
+        }, 60000);
+        return () => clearInterval(interval);
+    }, []);
+
+    const dailyCapturedCount = useMemo(() => {
+        if (!user?.id || !todayKey) return 0;
+        return allTimesheets.filter(ts => {
+            if (ts.user_id !== user.id || ts.status === 'archived') return false;
+            const created = ts.created_at ? new Date(ts.created_at) : null;
+            if (!created || isNaN(created.getTime())) return false;
+            const adjusted = new Date(created.getTime() - created.getTimezoneOffset() * 60000);
+            return adjusted.toISOString().split('T')[0] === todayKey;
+        }).length;
+    }, [allTimesheets, user?.id, todayKey]);
 
     const handleSave = () => {
         setRefreshKey((prev) => prev + 1);
@@ -177,7 +206,18 @@ export default function Timesheets() {
     };
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-200">
+        <div className="animate-in fade-in duration-200">
+            {user?.role === 'Wages Clerk' && (
+                <div className="mb-2">
+                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-bold shadow-sm">
+                        <Calendar className="w-3.5 h-3.5" />
+                        <span>Timesheets captured today:</span>
+                        <span className="bg-indigo-600 text-white rounded-full px-2 py-0.5 text-[11px] font-black min-w-[28px] text-center">
+                            {dailyCapturedCount}
+                        </span>
+                    </div>
+                </div>
+            )}
             <div className="bg-white rounded-2xl border border-slate-200/80 p-4 sm:p-6 md:p-8 mt-2.5">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex items-center gap-3">

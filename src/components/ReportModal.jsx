@@ -4,6 +4,7 @@ import * as XLSX from 'xlsx';
 const REPORT_COLUMNS = [
     { key: 'timesheetNo', label: 'Timesheet No' },
     { key: 'date', label: 'Date' },
+    { key: 'capturedAt', label: 'Captured At' },
     { key: 'clientId', label: 'Client ID' },
     { key: 'clientName', label: 'Client Name' },
     { key: 'empNo', label: 'Employee Number' },

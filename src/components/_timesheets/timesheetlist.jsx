@@ -42,6 +42,19 @@ const formatTime = (t) => {
     return match ? `${match[1].padStart(2, '0')}:${match[2]}` : str;
 };
 
+const formatCapturedAt = (val) => {
+    if (!val) return '';
+    const str = val.toString().trim();
+    const match = str.match(/(\d{4}-\d{2}-\d{2})[T\s](\d{1,2}:\d{2}(?::\d{2})?)/);
+    if (!match) return '';
+    const [, , timePart] = match;
+    const parts = timePart.split(':');
+    let hour = parseInt(parts[0], 10);
+    const minute = parts[1] || '00';
+    hour = (hour + 2) % 24;
+    return `${String(hour).padStart(2, '0')}:${minute}`;
+};
+
 const calculateHours = (timeIn, timeOut) => {
     const start = new Date(`1970-01-01T${timeIn}`);
     const end = new Date(`1970-01-01T${timeOut}`);
@@ -78,7 +91,7 @@ const calculateRow = (timesheet, clientRates, employees) => {
 
     const txCode = parseInt(timesheet.transaction_code, 10);
 
-     if (timesheet.shift_type === 'Task') {
+    if (timesheet.shift_type === 'Task') {
         totalHours = parseFloat(timesheet.units) || 0;
         ntHrs = totalHours;
         ntPay = totalHours * (parseFloat(timesheet.rate) || 0);
@@ -181,6 +194,8 @@ const calculateRow = (timesheet, clientRates, employees) => {
         timesheetNo: timesheet.timesheet_number || '',
         date: (timesheet.timesheet_date || '').toString().split(/[T\s]/)[0],
         weekKey: getWeekKey(timesheet.timesheet_date),
+        capturedAt: formatCapturedAt(timesheet.created_at),
+        capturedAtRaw: timesheet.created_at || '',
         clientId: timesheet.client_id || '',
         clientName: timesheet.client_name || '',
         empNo: timesheet.co_number || '',
@@ -217,6 +232,7 @@ const COLUMNS = [
     { id: '__checkbox__', label: '', minWidth: 40, isCheckbox: true },
     { id: 'timesheetNo', label: 'TIMESHEET NO', minWidth: 140 },
     { id: 'date', label: 'DATE', minWidth: 120 },
+    { id: 'capturedAt', label: 'CAPTURED AT', minWidth: 110 },
     { id: 'clientId', label: 'CLIENT ID', minWidth: 120 },
     { id: 'clientName', label: 'CLIENT NAME', minWidth: 200 },
     { id: 'empNo', label: 'EMP NO', minWidth: 110 },
@@ -233,7 +249,7 @@ const COLUMNS = [
     { id: 'ntPay', label: 'NT PAY(R)', minWidth: 120, align: 'right' },
     { id: 'otPay', label: 'OT PAY(R)', minWidth: 120, align: 'right' },
     { id: 'dtPay', label: 'DT PAY(R)', minWidth: 120, align: 'right' },
-    
+
     { id: 'actions', label: 'ACTIONS', minWidth: 90, align: 'center' },
 ];
 
@@ -304,7 +320,7 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
                     const wagesClerks = res.data.filter(u => u.role === 'Wages Clerk');
                     setClerks(wagesClerks);
                 })
-                .catch(() => {});
+                .catch(() => { });
         }
     }, [user]);
 
@@ -659,26 +675,24 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
 
     return (
 
-        <div className="w-full flex flex-col bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden">
+        <div className="w-full flex flex-col bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden mt-6">
             <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex flex-col gap-4 overflow-visible relative z-50">
                 <div className="flex items-center gap-6">
                     <button
                         onClick={() => { setTimesheetTab('active'); setPage(0); setSelectedTsNo(''); setSelectedEmpNo(''); setSelectedClientId(''); setSelectedClientName(''); setSelectedUnknownsOnly(false); setStartDate(''); setEndDate(''); }}
-                        className={`pb-2 text-sm font-semibold transition ${
-                            timesheetTab === 'active'
+                        className={`pb-2 text-sm font-semibold transition ${timesheetTab === 'active'
                                 ? "border-b-4 border-[#1742c4] text-[#1742c4]"
                                 : "text-slate-400 hover:text-slate-600"
-                        }`}
+                            }`}
                     >
                         Active Timesheets
                     </button>
                     <button
                         onClick={() => { setTimesheetTab('archived'); setPage(0); setSelectedTsNo(''); setSelectedEmpNo(''); setSelectedClientId(''); setSelectedClientName(''); setSelectedUnknownsOnly(false); setStartDate(''); setEndDate(''); }}
-                        className={`pb-2 text-sm font-semibold transition ${
-                            timesheetTab === 'archived'
+                        className={`pb-2 text-sm font-semibold transition ${timesheetTab === 'archived'
                                 ? "border-b-4 border-[#1742c4] text-[#1742c4]"
                                 : "text-slate-400 hover:text-slate-600"
-                        }`}
+                            }`}
                     >
                         Archived Timesheets
                     </button>
@@ -686,85 +700,84 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
                         <button
                             key={clerk.id}
                             onClick={() => { setTimesheetTab(clerk.id.toString()); setPage(0); setSelectedTsNo(''); setSelectedEmpNo(''); setSelectedClientId(''); setSelectedClientName(''); setSelectedUnknownsOnly(false); setStartDate(''); setEndDate(''); }}
-                            className={`pb-2 text-sm font-semibold transition ${
-                                timesheetTab === clerk.id.toString()
+                            className={`pb-2 text-sm font-semibold transition ${timesheetTab === clerk.id.toString()
                                     ? "border-b-4 border-[#1742c4] text-[#1742c4]"
                                     : "text-slate-400 hover:text-slate-600"
-                            }`}
+                                }`}
                         >
                             {clerk.full_name}
                         </button>
                     ))}
                 </div>
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div>
-                    <h1 className="text-xl sm:text-1xl font-bold text-slate-800 flex items-center">
-                        Capture Timesheet
-                    </h1>
-                    <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                        {filteredData.length} {timesheetTab === 'active' ? 'active' : timesheetTab === 'archived' ? 'archived' : 'captured'} timesheet entries
-                    </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-3 pb-4">
-                    {user?.role === 'Account Manager' && (
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-8 mt-2">
+                    <div>
+                        <h1 className="text-xl sm:text-1xl font-bold text-slate-800 flex items-center mb-2">
+                            Capture Timesheet
+                        </h1>
+                        <p className="text-xs sm:text-sm text-slate-500 mt-1">
+                            {filteredData.length} {timesheetTab === 'active' ? 'active' : timesheetTab === 'archived' ? 'archived' : 'captured'} timesheet entries
+                        </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3 pb-4">
+                        {user?.role === 'Account Manager' && (
+                            <div className="flex items-center gap-2">
+                                <label className="text-xs text-slate-500 font-medium whitespace-nowrap">Date:</label>
+                                <DateRangePicker
+                                    startDate={startDate}
+                                    endDate={endDate}
+                                    onStartChange={(val) => { setStartDate(val); setPage(0); }}
+                                    onEndChange={(val) => { setEndDate(val); setPage(0); }}
+                                    onClear={() => { setStartDate(''); setEndDate(''); setPage(0); }}
+                                />
+                            </div>
+                        )}
+                        {[
+                            { key: 'tsNo', label: 'Timesheet No:', options: tsNumberOptions, value: selectedTsNo, set: setSelectedTsNo },
+                            { key: 'clientId', label: 'Client ID:', options: clientIdOptions, value: selectedClientId, set: setSelectedClientId },
+                            { key: 'clientName', label: 'Client Name:', options: clientNameOptions, value: selectedClientName, set: setSelectedClientName },
+                        ].map(({ key, label, options, value, set: setValue }) => (
+                            <div key={key} className="flex items-center gap-2">
+                                <label className="text-xs text-slate-500 font-medium whitespace-nowrap">{label}</label>
+                                <select
+                                    value={value}
+                                    onChange={(e) => { setValue(e.target.value); setPage(0); }}
+                                    className="w-[120px] px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1742c4] bg-white relative z-50"
+                                >
+                                    <option value="">All</option>
+                                    {options.map((opt) => (
+                                        <option key={opt} value={opt}>
+                                            {opt}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        ))}
                         <div className="flex items-center gap-2">
-                            <label className="text-xs text-slate-500 font-medium whitespace-nowrap">Date:</label>
-                            <DateRangePicker
-                                startDate={startDate}
-                                endDate={endDate}
-                                onStartChange={(val) => { setStartDate(val); setPage(0); }}
-                                onEndChange={(val) => { setEndDate(val); setPage(0); }}
-                                onClear={() => { setStartDate(''); setEndDate(''); setPage(0); }}
+                            <label className="text-xs text-slate-500 font-medium whitespace-nowrap">Unknown Employees:</label>
+                            <input
+                                type="checkbox"
+                                checked={selectedUnknownsOnly}
+                                onChange={(e) => { setSelectedUnknownsOnly(e.target.checked); setPage(0); }}
+                                className="w-4 h-4 text-[#1742c4] border-slate-300 rounded focus:ring-[#1742c4]"
                             />
                         </div>
-                    )}
-                    {[
-                        { key: 'tsNo', label: 'Timesheet No:', options: tsNumberOptions, value: selectedTsNo, set: setSelectedTsNo },
-                        { key: 'clientId', label: 'Client ID:', options: clientIdOptions, value: selectedClientId, set: setSelectedClientId },
-                        { key: 'clientName', label: 'Client Name:', options: clientNameOptions, value: selectedClientName, set: setSelectedClientName },
-                    ].map(({ key, label, options, value, set: setValue }) => (
-                        <div key={key} className="flex items-center gap-2">
-                            <label className="text-xs text-slate-500 font-medium whitespace-nowrap">{label}</label>
+                        <div className="flex items-center gap-2">
+                            <label className="text-xs text-slate-500 font-medium whitespace-nowrap">Emp No:</label>
                             <select
-                                value={value}
-                                onChange={(e) => { setValue(e.target.value); setPage(0); }}
+                                value={selectedEmpNo}
+                                onChange={(e) => { setSelectedEmpNo(e.target.value); setPage(0); }}
                                 className="w-[120px] px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1742c4] bg-white relative z-50"
                             >
                                 <option value="">All</option>
-                                {options.map((opt) => (
-                                    <option key={opt} value={opt}>
-                                        {opt}
+                                {empNoOptions.map((num) => (
+                                    <option key={num} value={num}>
+                                        {num}
                                     </option>
                                 ))}
                             </select>
                         </div>
-                    ))}
-                    <div className="flex items-center gap-2">
-                        <label className="text-xs text-slate-500 font-medium whitespace-nowrap">Unknown Employees:</label>
-                        <input
-                            type="checkbox"
-                            checked={selectedUnknownsOnly}
-                            onChange={(e) => { setSelectedUnknownsOnly(e.target.checked); setPage(0); }}
-                            className="w-4 h-4 text-[#1742c4] border-slate-300 rounded focus:ring-[#1742c4]"
-                        />
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <label className="text-xs text-slate-500 font-medium whitespace-nowrap">Emp No:</label>
-                        <select
-                            value={selectedEmpNo}
-                            onChange={(e) => { setSelectedEmpNo(e.target.value); setPage(0); }}
-                            className="w-[120px] px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#1742c4] bg-white relative z-50"
-                        >
-                            <option value="">All</option>
-                            {empNoOptions.map((num) => (
-                                <option key={num} value={num}>
-                                    {num}
-                                </option>
-                            ))}
-                        </select>
                     </div>
                 </div>
-            </div>
             </div>
             {selectedIds.length > 0 && (
                 <div className="bg-red-50 border-b border-red-200 px-6 py-3 flex items-center justify-between">
@@ -957,9 +970,9 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
                                                     key={column.id}
                                                     style={{ width: `${column.minWidth}px` }}
                                                     className={`
-                                                            px-4 py-3 text-xs border-r border-slate-200/60 truncate text-slate-700 font-medium
-                                                            ${isNumeric ? 'text-right font-mono text-slate-800' : 'text-left'}
-                                                        `}
+                                                              px-4 py-3 text-xs border-r border-slate-200/60 truncate text-slate-700 font-medium
+                                                              ${isNumeric ? 'text-right font-mono text-slate-800' : 'text-left'}
+                                                          `}
                                                     title={String(cellVal)}
                                                 >
                                                     {isNumeric ? (
@@ -968,11 +981,13 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
                                                                 <span className="text-slate-400 mr-0.5 text-[10px]">R</span>
                                                                 {cellVal.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                             </span>
-                                                           ) : column.id === 'ntHrs' && row.shiftType === 'Semi' && (row.semi_weekly_hours || '').toString().trim() !== 'n/s' && cellVal >= 45 ? (
-                                                              <span className="text-red-600 font-semibold">{cellVal.toFixed(2)}</span>
-                                                          ) : (
-                                                              cellVal.toFixed(2)
-                                                          )
+                                                        ) : column.id === 'ntHrs' && row.shiftType === 'Semi' && (row.semi_weekly_hours || '').toString().trim() !== 'n/s' && cellVal >= 45 ? (
+                                                            <span className="text-red-600 font-semibold">{cellVal.toFixed(2)}</span>
+                                                        ) : (
+                                                            cellVal.toFixed(2)
+                                                        )
+                                                    ) : column.id === 'capturedAt' ? (
+                                                        formatCapturedAt(row.capturedAtRaw)
                                                     ) : (
                                                         cellVal
                                                     )}
