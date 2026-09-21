@@ -217,9 +217,22 @@ export const calculateSemiWeeklySummary = (semiTimesheets, clientRates, employee
         const normalTimeRate = g.timesheets?.some((ts) => ts.shift_type === "Ad-Hoc" || ts.shift_type === "Adhoc")
             ? parseFloat(g.rate?.sub_total_a) || 0
             : parseFloat(g.rate?.nt_hourly_rate) || 0;
-        const normalTime = g.totalNetHours;
-        const overTime = 0;
-        const doubleTime = 0;
+        const otRate = parseFloat(g.rate?.ot_1_5_rate) || 0;
+        const dtRate = parseFloat(g.rate?.ot_2_0_rate) || 0;
+
+        let normalTime = 0;
+        let overTime = 0;
+        let doubleTime = 0;
+
+        const txCode = parseInt(g.transactionCode, 10);
+
+        if (txCode === 1921 || txCode === 1922) {
+            doubleTime = g.totalNetHours;
+        } else if (txCode === 1920) {
+            overTime = g.totalNetHours;
+        } else {
+            normalTime = g.totalNetHours;
+        }
 
         return {
             ...g,
@@ -228,11 +241,11 @@ export const calculateSemiWeeklySummary = (semiTimesheets, clientRates, employee
             doubleTime: parseFloat(doubleTime.toFixed(2)),
             totalHours: parseFloat(g.totalNetHours.toFixed(2)),
             normalTimePay: parseFloat((normalTime * normalTimeRate).toFixed(2)),
-            overTimePay: parseFloat((overTime * 0).toFixed(2)),
-            doubleTimePay: parseFloat((doubleTime * 0).toFixed(2)),
+            overTimePay: parseFloat((overTime * otRate).toFixed(2)),
+            doubleTimePay: parseFloat((doubleTime * dtRate).toFixed(2)),
             rate: normalTimeRate,
-            otRate: 0,
-            dtRate: 0,
+            otRate,
+            dtRate,
         };
     });
 
