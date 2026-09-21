@@ -112,9 +112,17 @@ const calculateRow = (timesheet, clientRates, employees) => {
         const netHours = biometricHours - lunchDeduction;
 
         if (isNonStandard) {
-            const ntRate = isAdHoc ? (parseFloat(rate?.sub_total_a) || 0) : (parseFloat(rate?.nt_hourly_rate) || 0);
-            ntHrs = netHours;
-            ntPay = netHours * ntRate;
+            if (txCode === 1921 || txCode === 1922) {
+                dtHrs = netHours;
+                dtPay = netHours * (parseFloat(rate?.ot_2_0_rate) || 0);
+            } else if (txCode === 1920) {
+                otHrs = netHours;
+                otPay = netHours * (parseFloat(rate?.ot_1_5_rate) || 0);
+            } else {
+                const ntRate = isAdHoc ? (parseFloat(rate?.sub_total_a) || 0) : (parseFloat(rate?.nt_hourly_rate) || 0);
+                ntHrs = netHours;
+                ntPay = netHours * ntRate;
+            }
         } else if (txCode === 1921 || txCode === 1922) {
             dtHrs = netHours;
             dtPay = netHours * (parseFloat(rate?.ot_2_0_rate) || 0);
