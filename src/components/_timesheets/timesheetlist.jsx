@@ -793,24 +793,25 @@ export default function TimesheetList({ refreshKey, onEdit, onDelete, onBulkDele
                         {selectedIds.length} timesheet{selectedIds.length > 1 ? "s" : ""} selected
                     </span>
                     <div className="flex items-center gap-3">
-                        {timesheetTab === 'active' || isClerkTab ? (
-                            <>
-                                <button
-                                    onClick={handleArchiveClick}
-                                    className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white text-sm font-bold rounded-lg hover:bg-amber-600 transition-colors shadow-sm"
-                                >
-                                    <Archive className="w-4 h-4" />
-                                    Archive Selected
-                                </button>
-                                <button
-                                    onClick={handleBulkDeleteClick}
-                                    className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white text-sm font-bold rounded-lg hover:bg-red-700 transition-colors shadow-sm"
-                                >
-                                    <Trash2 className="w-4 h-4" />
-                                    Delete Selected
-                                </button>
-                            </>
-                        ) : (
+                        {timesheetTab === 'active' && user?.role !== 'Wages Clerk' && (
+                            <button
+                                onClick={handleArchiveClick}
+                                className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white text-sm font-bold rounded-lg hover:bg-amber-600 transition-colors shadow-sm"
+                            >
+                                <Archive className="w-4 h-4" />
+                                Archive Selected
+                            </button>
+                        )}
+                        {(timesheetTab === 'active' || isClerkTab) && (
+                            <button
+                                onClick={handleBulkDeleteClick}
+                                className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white text-sm font-bold rounded-lg hover:bg-red-700 transition-colors shadow-sm"
+                            >
+                                <Trash2 className="w-4 h-4" />
+                                Delete Selected
+                            </button>
+                        )}
+                        {timesheetTab === 'archived' && (
                             <>
                                 <button
                                     onClick={handleBulkUnarchive}
