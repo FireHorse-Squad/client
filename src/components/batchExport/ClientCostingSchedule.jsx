@@ -387,6 +387,17 @@ const processTimesheetData = (timesheets, clientRates, clientId, employees = [],
         });
     }
 
+    const timeTypeOrder = { NT: 0, OT: 1, DT: 2 };
+
+    data.sort((a, b) => {
+        const aKey = `${a.co_number}-${a.date}-${a.employeeName || a.occupation}`;
+        const bKey = `${b.co_number}-${b.date}-${b.employeeName || b.occupation}`;
+        if (aKey !== bKey) {
+            return aKey.localeCompare(bKey);
+        }
+        return (timeTypeOrder[a.timeType] ?? 99) - (timeTypeOrder[b.timeType] ?? 99);
+    });
+
     return { data, dates };
 };
 

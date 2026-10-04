@@ -391,32 +391,114 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
                 };
             }
             const entry = data[groupKey];
-            if (summary.normalTime > 0) {
-                const daysInWeek = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
-                const perDay = summary.normalTime / daysInWeek.length;
-                daysInWeek.forEach(d => {
-                    entry.NT[d] += perDay;
-                    entry.days.add(d);
+            const isNightShift = summary.timesheets?.some((ts) => ts.semi_weekly_hours === "n/s");
+            const weeklyHours = summary.timesheets?.[0]?.semi_weekly_hours === "n/s" ? 0 : parseFloat(summary.timesheets?.[0]?.semi_weekly_hours || '45') || 45;
+
+            if (isNightShift) {
+                summary.timesheets?.forEach((ts) => {
+                    const adjustedDate = getAdjustedDate(new Date(ts.timesheet_date));
+                    const dayOfWeek = getDayOfWeek(adjustedDate);
+                    const dayLower = dayOfWeek.toLowerCase();
+                    let totalHours = ts.total_hours != null ? parseFloat(ts.total_hours) : calculateHours(ts.start_time, ts.end_time);
+                    const netHours = totalHours;
+                    if (netHours > 0) {
+                        entry.NT[dayLower] += netHours;
+                        entry.days.add(dayLower);
+                        entry.NT.count += 1;
+                    }
                 });
-                entry.NT.count += 1;
-            }
-            if (summary.overTime > 0) {
-                const daysInWeek = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
-                const perDay = summary.overTime / daysInWeek.length;
-                daysInWeek.forEach(d => {
-                    entry.OT[d] += perDay;
-                    entry.days.add(d);
+            } else {
+                const sundayTimesheets = [];
+                const weekdayTimesheets = [];
+
+                summary.timesheets?.forEach((ts) => {
+                    const adjustedDate = getAdjustedDate(new Date(ts.timesheet_date));
+                    const dayOfWeek = getDayOfWeek(adjustedDate);
+                    if (dayOfWeek === "Sun") {
+                        sundayTimesheets.push({ ...ts, dayLower: "sun" });
+                    } else {
+                        weekdayTimesheets.push({ ...ts, dayLower: dayOfWeek.toLowerCase() });
+                    }
                 });
-                entry.OT.count += 1;
-            }
-            if (summary.doubleTime > 0) {
-                const daysInWeek = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
-                const perDay = summary.doubleTime / daysInWeek.length;
-                daysInWeek.forEach(d => {
-                    entry.DT[d] += perDay;
-                    entry.days.add(d);
+
+                weekdayTimesheets.sort((a, b) => new Date(a.timesheet_date) - new Date(b.timesheet_date));
+
+                const totalWeekdayNetHours = weekdayTimesheets.reduce((sum, ts) => {
+                    const rate = findRate(clientRates, ts.client_id, ts.occupation);
+                    let totalHours = ts.total_hours != null ? parseFloat(ts.total_hours) : calculateHours(ts.start_time, ts.end_time);
+                    const lunchDeduction = ts.actual_lunch_hours !== null &&
+                        ts.actual_lunch_hours !== undefined &&
+                        ts.actual_lunch_hours !== ""
+                        ? parseFloat(ts.actual_lunch_hours)
+                        : parseFloat(rate?.deduct_lunch_hour) || 0;
+                    return sum + (totalHours - lunchDeduction);
+                }, 0);
+
+                let weekdayNTQuota = weeklyHours;
+                if (summary.hasPublicHoliday && totalWeekdayNetHours > weeklyHours) {
+                    weekdayNTQuota = totalWeekdayNetHours;
+                }
+
+                let remainingWeekdayNT = weekdayNTQuota;
+
+                weekdayTimesheets.forEach((ts) => {
+                    const rate = findRate(clientRates, ts.client_id, ts.occupation);
+                    let totalHours = ts.total_hours != null ? parseFloat(ts.total_hours) : calculateHours(ts.start_time, ts.end_time);
+                    const lunchDeduction = ts.actual_lunch_hours !== null &&
+                        ts.actual_lunch_hours !== undefined &&
+                        ts.actual_lunch_hours !== ""
+                        ? parseFloat(ts.actual_lunch_hours)
+                        : parseFloat(rate?.deduct_lunch_hour) || 0;
+                    const netHours = totalHours - lunchDeduction;
+                    const txCode = (ts.transaction_code || "").toString().trim();
+
+                    let dayNT = 0, dayOT = 0, dayDT = 0;
+
+                    if (txCode === "1920") {
+                        dayOT = netHours;
+                    } else if (txCode === "1921" || txCode === "1922") {
+                        dayDT = netHours;
+                    } else if (summary.hasPublicHoliday && totalWeekdayNetHours > weeklyHours) {
+                        dayNT = netHours;
+                    } else {
+                        dayNT = Math.min(netHours, remainingWeekdayNT);
+                        dayOT = netHours - dayNT;
+                        remainingWeekdayNT -= dayNT;
+                    }
+
+                    if (dayNT > 0) {
+                        entry.NT[ts.dayLower] += dayNT;
+                        entry.days.add(ts.dayLower);
+                        entry.NT.count += 1;
+                    }
+                    if (dayOT > 0) {
+                        entry.OT[ts.dayLower] += dayOT;
+                        entry.days.add(ts.dayLower);
+                        entry.OT.count += 1;
+                    }
+                    if (dayDT > 0) {
+                        entry.DT[ts.dayLower] += dayDT;
+                        entry.days.add(ts.dayLower);
+                        entry.DT.count += 1;
+                    }
                 });
-                entry.DT.count += 1;
+
+                sundayTimesheets.forEach((ts) => {
+                    const rate = findRate(clientRates, ts.client_id, ts.occupation);
+                    let totalHours = ts.total_hours != null ? parseFloat(ts.total_hours) : calculateHours(ts.start_time, ts.end_time);
+                    const lunchDeduction = ts.actual_lunch_hours !== null &&
+                        ts.actual_lunch_hours !== undefined &&
+                        ts.actual_lunch_hours !== ""
+                        ? parseFloat(ts.actual_lunch_hours)
+                        : parseFloat(rate?.deduct_lunch_hour) || 0;
+                    const netHours = totalHours - lunchDeduction;
+
+                    if (netHours > 0) {
+                        entry.DT["sun"] += netHours;
+                        entry.days.add("sun");
+                        entry.DT.count += 1;
+                    }
+                });
             }
 
             if (summary.normalTime === 0 && summary.overTime === 0 && summary.doubleTime === 0) {
