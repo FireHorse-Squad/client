@@ -700,6 +700,8 @@ export default function CostingSchedule() {
             el.style.overflow = "visible";
         });
 
+        void element.offsetHeight;
+
         const rowStyle = document.createElement("style");
         rowStyle.id = "pdf-row-pagebreak-style";
         rowStyle.textContent = "table { page-break-inside: auto; } table tr { page-break-inside: avoid !important; }";
@@ -711,12 +713,13 @@ export default function CostingSchedule() {
             html2canvas: {
                 scale: 2,
                 useCORS: true,
-                width: element.scrollWidth,
-                height: element.scrollHeight,
+                useSVGElev: true,
+                allowTally: true,
+                logging: false,
                 windowWidth: element.scrollWidth,
             },
             jsPDF: { unit: "mm", format: [420, 297], orientation: "landscape" },
-            pagebreak: { mode: ["css", "legacy"], after: ".page-break" },
+            pagebreak: { mode: "css", after: ".page-break" },
         };
 
         const clientNamePart = activeClientName.replace(/\s+/g, "_");
