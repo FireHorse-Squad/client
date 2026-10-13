@@ -203,7 +203,7 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
             }
 
             types.forEach(({ type, hours }) => {
-                const groupKey = `${timesheet.co_number || timesheet.empNo || timesheet.employee_no || ""}|${timesheet.client_id || ""}|${occupation}|${type}`;
+                const groupKey = `${timesheet.co_number || timesheet.empNo || timesheet.employee_no || ""}|${timesheet.client_id || ""}|${occupation}|${type}|${timesheet.timesheet_number || ""}`;
                 if (!data[groupKey]) {
                     const matchedEmployee = employees.find((emp) => {
                         const coNumber = (timesheet.co_number || timesheet.empNo || timesheet.employee_no || "").toString().trim();
@@ -252,37 +252,29 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
             allSummaries.push(...summaries);
         });
 
-        const semiTsNumbersByGroup = {};
-        semiTimesheets.forEach((ts) => {
-            const groupKey = `${ts.co_number}|${ts.client_id}|${ts.occupation}`;
-            if (!semiTsNumbersByGroup[groupKey]) {
-                semiTsNumbersByGroup[groupKey] = new Set();
-            }
-            if (ts.timesheet_number) {
-                semiTsNumbersByGroup[groupKey].add(ts.timesheet_number);
-            }
-        });
         allSummaries.forEach((summary) => {
-            const groupKey = `${summary.co_number}|${summary.client_id}|${summary.occupation}`;
             const fullRate = findRate(clientRates, summary.client_id, summary.occupation);
-            const tsNumbersList = semiTsNumbersByGroup[groupKey] ? [...semiTsNumbersByGroup[groupKey]] : [];
-            if (!data[groupKey]) {
-                data[groupKey] = {
-                    client_id: summary.client_id,
-                    client_name: summary.client_name || "",
-                    occupation: summary.occupation,
-                    rateInfo: fullRate,
-                    hasAdHocNT: false,
-                    NT: { count: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
-                    OT: { count: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
-                    DT: { count: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
-                    days: new Set(),
-                     tsNumber: tsNumbersList,
-                    empNo: summary.co_number || "",
-                    shift_type: "Semi",
-                };
-            }
-            const entry = data[groupKey];
+            const getOrCreateEntry = (tsNum) => {
+                const entryKey = `${summary.co_number}|${summary.client_id}|${summary.occupation}|${tsNum || ""}`;
+                if (!data[entryKey]) {
+                    data[entryKey] = {
+                        client_id: summary.client_id,
+                        client_name: summary.client_name || "",
+                        occupation: summary.occupation,
+                        rateInfo: fullRate,
+                        hasAdHocNT: false,
+                        NT: { count: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
+                        OT: { count: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
+                        DT: { count: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
+                        days: new Set(),
+                        tsNumber: [tsNum].filter(Boolean),
+                        empNo: summary.co_number || "",
+                        employeeName: summary.employeeName || "",
+                        shift_type: "Semi",
+                    };
+                }
+                return data[entryKey];
+            };
             const isNightShift = summary.timesheets?.some((ts) => ts.semi_weekly_hours === "n/s");
             const weeklyHours = summary.timesheets?.[0]?.semi_weekly_hours === "n/s" ? 0 : parseFloat(summary.timesheets?.[0]?.semi_weekly_hours || '45') || 45;
 
@@ -294,6 +286,7 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
                     let totalHours = ts.total_hours != null ? parseFloat(ts.total_hours) : calculateHours(ts.start_time, ts.end_time);
                     const netHours = totalHours;
                     if (netHours > 0) {
+                        const entry = getOrCreateEntry(ts.timesheet_number);
                         entry.NT[dayLower] += netHours;
                         entry.days.add(dayLower);
                         entry.NT.count += 1;
@@ -358,6 +351,7 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
                         remainingWeekdayNT -= dayNT;
                     }
 
+                    const entry = getOrCreateEntry(ts.timesheet_number);
                     if (dayNT > 0) {
                         entry.NT[ts.dayLower] += dayNT;
                         entry.days.add(ts.dayLower);
@@ -386,6 +380,7 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
                     const netHours = totalHours - lunchDeduction;
 
                     if (netHours > 0) {
+                        const entry = getOrCreateEntry(ts.timesheet_number);
                         entry.DT["sun"] += netHours;
                         entry.days.add("sun");
                         entry.DT.count += 1;
@@ -394,7 +389,10 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
             }
 
             if (summary.normalTime === 0 && summary.overTime === 0 && summary.doubleTime === 0) {
-                entry.NT.count += 1;
+                summary.timesheets?.forEach((ts) => {
+                    const entry = getOrCreateEntry(ts.timesheet_number);
+                    entry.NT.count += 1;
+                });
             }
         });
     };
@@ -440,8 +438,8 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
 
             const getBaseKey = (row) => {
                 const parts = row.key.split("|");
-                if (parts.length === 4) {
-                    return parts.slice(0, 3).join("|");
+                if (parts.length === 5) {
+                    return parts.slice(0, 3).concat(parts[4]).join("|");
                 }
                 return row.key;
             };
