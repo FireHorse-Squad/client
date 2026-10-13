@@ -203,8 +203,12 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
             }
 
             types.forEach(({ type, hours }) => {
-                const groupKey = `${timesheet.timesheet_number || ""}|${timesheet.client_id || ""}|${occupation}|${type}`;
+                const groupKey = `${timesheet.co_number || timesheet.empNo || timesheet.employee_no || ""}|${timesheet.client_id || ""}|${occupation}|${type}`;
                 if (!data[groupKey]) {
+                    const matchedEmployee = employees.find((emp) => {
+                        const coNumber = (timesheet.co_number || timesheet.empNo || timesheet.employee_no || "").toString().trim();
+                        return (emp.co_number || "").toString().trim() === coNumber;
+                    });
                     data[groupKey] = {
                         client_id: timesheet.client_id,
                         client_name: timesheet.client_name,
@@ -215,16 +219,20 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
                         OT: { count: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
                         DT: { count: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
                         days: new Set(),
-                        tsNumber: timesheet.timesheet_number,
-                        empNo: timesheet.co_number || timesheet.empNo || timesheet.employee_no || "",
-                        shift_type: timesheet.shift_type,
-                    };
-                }
-                const entry = data[groupKey];
-                entry.days.add(dayLower);
-                entry[type][dayLower] += hours;
-                entry[type].count += 1;
-                if (type === "NT" && isAdHoc) entry.hasAdHocNT = true;
+                         tsNumber: [timesheet.timesheet_number].filter(Boolean),
+                         empNo: timesheet.co_number || timesheet.empNo || timesheet.employee_no || "",
+                         employeeName: matchedEmployee?.full_name || "",
+                         shift_type: timesheet.shift_type,
+                     };
+                 }
+                 const entry = data[groupKey];
+                 entry.days.add(dayLower);
+                 entry[type][dayLower] += hours;
+                 entry[type].count += 1;
+                 if (type === "NT" && isAdHoc) entry.hasAdHocNT = true;
+                 if (timesheet.timesheet_number && !entry.tsNumber.includes(timesheet.timesheet_number)) {
+                     entry.tsNumber.push(timesheet.timesheet_number);
+                 }
             });
         });
     };
@@ -258,7 +266,6 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
             const groupKey = `${summary.co_number}|${summary.client_id}|${summary.occupation}`;
             const fullRate = findRate(clientRates, summary.client_id, summary.occupation);
             const tsNumbersList = semiTsNumbersByGroup[groupKey] ? [...semiTsNumbersByGroup[groupKey]] : [];
-            const representativeTsNumber = tsNumbersList.length === 1 ? tsNumbersList[0] : (tsNumbersList[0] || "");
             if (!data[groupKey]) {
                 data[groupKey] = {
                     client_id: summary.client_id,
@@ -270,7 +277,7 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
                     OT: { count: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
                     DT: { count: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
                     days: new Set(),
-                    tsNumber: representativeTsNumber,
+                     tsNumber: tsNumbersList,
                     empNo: summary.co_number || "",
                     shift_type: "Semi",
                 };
@@ -417,7 +424,7 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
                     rate = parseFloat(rateInfo.ot_2_0_rate) || 0;
                     invoiceRate = parseFloat(rateInfo.ot_2_0_invoice_rate) || 0;
                 }
-                return { key, entry, type, rate, invoiceRate, tsNumber: entry.tsNumber || "" };
+                return { key, entry, type, rate, invoiceRate, tsNumber: entry.tsNumber[0] || "", timesheetNumbers: entry.tsNumber || [] };
             });
         })
         .sort((a, b) => {
@@ -426,8 +433,8 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
             const cmp = nameA.localeCompare(nameB);
             if (cmp !== 0) return cmp;
 
-            const tsA = parseFloat(a.entry.tsNumber || a.key.split("|")[0]);
-            const tsB = parseFloat(b.entry.tsNumber || b.key.split("|")[0]);
+            const tsA = parseFloat((a.entry.tsNumber[0] || a.key.split("|")[0]));
+            const tsB = parseFloat((b.entry.tsNumber[0] || b.key.split("|")[0]));
             const tsCmp = (isNaN(tsA) ? 0 : tsA) - (isNaN(tsB) ? 0 : tsB);
             if (tsCmp !== 0) return tsCmp;
 
@@ -508,6 +515,8 @@ export default function CostingSchedule() {
     const [currentWeekStart, setCurrentWeekStart] = useState(null);
     const [showDatePicker, setShowDatePicker] = useState(false);
     const pdfRef = useRef(null);
+    const [costingTab, setCostingTab] = useState('schedule');
+    const clientPdfRef = useRef(null);
 
     const fetchData = useCallback(async () => {
         try {
@@ -677,35 +686,48 @@ export default function CostingSchedule() {
 
     const handleDownload = async () => {
         setDownloading(true);
-        const element = pdfRef.current;
+        const isClientTab = costingTab === 'clientSchedule';
+        const element = isClientTab ? clientPdfRef.current : pdfRef.current;
 
-        const originalStyle = element.style.cssText;
-        const originalWidth = element.style.width;
-        const originalMaxHeight = element.style.maxHeight;
-        const originalOverflowY = element.style.overflowY;
+        if (!element) {
+            setDownloading(false);
+            return;
+        }
 
-        element.style.transform = "scale(0.7)";
-        element.style.transformOrigin = "top left";
-        element.style.width = "142%";
-        element.style.maxHeight = "none";
-        element.style.overflowY = "visible";
+        const outerContainer = pdfRef.current;
+        const elementsToExpand = new Set([element]);
+        if (outerContainer) elementsToExpand.add(outerContainer);
+        elementsToExpand.forEach((el) => {
+            el.style.maxHeight = "none";
+            el.style.overflow = "visible";
+        });
 
         const rowStyle = document.createElement("style");
         rowStyle.id = "pdf-row-pagebreak-style";
-        rowStyle.textContent = "table tr { page-break-inside: avoid !important; }";
+        rowStyle.textContent = "table { page-break-inside: auto; } table tr { page-break-inside: avoid !important; }";
         document.head.appendChild(rowStyle);
 
-        const opt = {
+        const baseOpt = {
             margin: 5,
-            filename: `Costing_Schedule_${activeClientName.replace(/\s+/g, "_")}_${new Date().toISOString().split("T")[0]}.pdf`,
             image: { type: "jpeg", quality: 0.98 },
             html2canvas: {
                 scale: 2,
                 useCORS: true,
-                windowWidth: element.scrollWidth
+                width: element.scrollWidth,
+                height: element.scrollHeight,
+                windowWidth: element.scrollWidth,
             },
-            jsPDF: { unit: "mm", format: "a4", orientation: "landscape" },
+            jsPDF: { unit: "mm", format: [420, 297], orientation: "landscape" },
+            pagebreak: { mode: ["css", "legacy"], after: ".page-break" },
         };
+
+        const clientNamePart = activeClientName.replace(/\s+/g, "_");
+        const datePart = new Date().toISOString().split("T")[0];
+        const filename = isClientTab
+            ? `Client_Costing_Schedule_${clientNamePart}_${datePart}.pdf`
+            : `Costing_Schedule_${clientNamePart}_${datePart}.pdf`;
+
+        const opt = { ...baseOpt, filename };
 
         try {
             await html2pdf().set(opt).from(element).save();
@@ -715,10 +737,11 @@ export default function CostingSchedule() {
             const injectedStyle = document.getElementById("pdf-row-pagebreak-style");
             if (injectedStyle) injectedStyle.remove();
 
-            element.style.cssText = originalStyle;
-            element.style.width = originalWidth;
-            element.style.maxHeight = originalMaxHeight;
-            element.style.overflowY = originalOverflowY;
+            elementsToExpand.forEach((el) => {
+                el.style.maxHeight = "";
+                el.style.overflow = "";
+            });
+
             setDownloading(false);
         }
     };
@@ -752,7 +775,7 @@ export default function CostingSchedule() {
             return {
                 Region: region,
                 "Shift Type": entry.shift_type || "",
-                "Timesheet No": entry.tsNumber || "",
+                "Timesheet No": Array.isArray(entry.tsNumber) ? entry.tsNumber.join(", ") : (entry.tsNumber || ""),
                 "Employee No": entry.empNo || "",
                 "Client Name": clientName,
                 "Cost Centre": entry.client_id == null ? "" : entry.client_id.toString(),
@@ -803,6 +826,73 @@ export default function CostingSchedule() {
         XLSX.writeFile(wb, `Cost_Allocation_Report_${new Date().toISOString().split("T")[0]}.xlsx`);
     };
 
+    const processClientCostingData = useCallback((rows, employees = []) => {
+        const days = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+        const grouped = {};
+
+        rows.forEach((row) => {
+            const empNo = row.entry.empNo || "";
+            const occupation = row.entry.occupation || "";
+            const key = `${empNo}|${occupation}`;
+
+            if (!grouped[key]) {
+                const matchedEmployee = employees.find((emp) => (emp.co_number || "").toString().trim() === empNo.toString().trim());
+                grouped[key] = {
+                    empNo,
+                    employeeName: matchedEmployee?.full_name || row.entry.employeeName || "",
+                    occupation,
+                    client_id: row.entry.client_id,
+                    rateInfo: row.entry.rateInfo,
+                    NT: { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
+                    OT: { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
+                    DT: { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 },
+                };
+            }
+
+            const entry = grouped[key];
+            const typeHours = row.type === "NT" ? entry.NT : row.type === "OT" ? entry.OT : entry.DT;
+            days.forEach((d) => {
+                typeHours[d] += row.entry[row.type][d] || 0;
+            });
+        });
+
+        return Object.values(grouped).map((entry) => {
+            const rateInfo = entry.rateInfo || {};
+            const payRateNT = parseFloat(rateInfo.nt_hourly_rate) || 0;
+            const chargeRateNT = parseFloat(rateInfo.nt_invoice_rate) || 0;
+            const payRateOT = parseFloat(rateInfo.ot_1_5_rate) || 0;
+            const chargeRateOT = parseFloat(rateInfo.ot_1_5_invoice_rate) || 0;
+            const payRateDT = parseFloat(rateInfo.ot_2_0_rate) || 0;
+            const chargeRateDT = parseFloat(rateInfo.ot_2_0_invoice_rate) || 0;
+
+            const totalNT = days.reduce((sum, d) => sum + entry.NT[d], 0);
+            const totalOT = days.reduce((sum, d) => sum + entry.OT[d], 0);
+            const totalDT = days.reduce((sum, d) => sum + entry.DT[d], 0);
+            const totalCharge = totalNT * chargeRateNT + totalOT * chargeRateOT + totalDT * chargeRateDT;
+
+            return {
+                empNo: entry.empNo,
+                employeeName: entry.employeeName,
+                occupation: entry.occupation,
+                client_id: entry.client_id,
+                rateInfo: entry.rateInfo,
+                payRateNT,
+                chargeRateNT,
+                payRateOT,
+                chargeRateOT,
+                payRateDT,
+                chargeRateDT,
+                NT: entry.NT,
+                OT: entry.OT,
+                DT: entry.DT,
+                totalNT,
+                totalOT,
+                totalDT,
+                totalCharge,
+            };
+        });
+    }, []);
+
     const { data, dates, allData } = useMemo(() => {
         let filteredTimesheets = allTimesheets.filter((ts) => ts.status !== "archived");
         let filteredClientRates = allClientRates;
@@ -832,6 +922,10 @@ export default function CostingSchedule() {
         const weekResult = processCostingData(filteredTimesheets, filteredClientRates, allEmployees, publicHolidays, currentWeekStart, false);
         return { data: weekResult.data, dates: weekResult.dates, allData: allResult.data };
     }, [allTimesheets, allClientRates, allEmployees, publicHolidays, selectedClientName, selectedClientId, selectedTsNo, currentWeekStart]);
+
+    const clientCostingData = useMemo(() => {
+        return processClientCostingData(data, allEmployees);
+    }, [data, allEmployees, processClientCostingData]);
 
     const totals = useMemo(() => {
         let monTot = 0, tueTot = 0, wedTot = 0, thuTot = 0, friTot = 0, satTot = 0, sunTot = 0;
@@ -890,6 +984,253 @@ export default function CostingSchedule() {
         if (selectedClientName) return selectedClientName;
         return "All Clients";
     }, [selectedClientId, selectedClientName, allClientRates]);
+
+    const renderScheduleTable = () => {
+        return (
+            <table className="border-collapse border-spacing-0 text-left w-full" style={{ minWidth: "1200px" }}>
+                <thead>
+                    <tr className="bg-[#2D328F]">
+                        <th colSpan="2" className="px-4 py-2.5 text-[10px] font-black tracking-widest text-slate-200 border-r border-slate-700/50 uppercase">{activeClientName} - {selectedClientId}</th>
+                        <th colSpan="7" className="px-4 py-2.5 text-center text-[10px] font-black tracking-widest text-slate-200 border-r border-slate-700/50 uppercase bg-indigo-950/40">Weekly Hours Breakdown</th>
+                        <th colSpan="5" className="px-4 py-2.5 text-right text-[10px] font-black tracking-widest text-slate-200 uppercase">Costing & Billing Rates (R)</th>
+                    </tr>
+                    <tr className="bg-[#2D328F]/95 text-[11px] font-bold text-white uppercase tracking-wider sticky top-0 z-10 border-b border-slate-700">
+                        <th style={{ width: "120px" }} className="px-2 py-3 bg-[#2D328F] shadow-[2px_0_5px_rgba(0,0,0,0.15)] text-[10px]">TS No</th>
+                        <th style={{ width: "200px" }} className="px-3 py-3 bg-[#2D328F] shadow-[2px_0_5px_rgba(0,0,0,0.15)]">Role / Description</th>
+                        {dates.map((d, i) => (
+                            <th key={i} style={{ width: "45px" }} className={`px-1.5 py-3 text-center bg-indigo-950/25 text-[10px] ${i >= 5 ? 'bg-amber-500/20 text-amber-200' : ''} ${i === 6 ? 'border-r border-indigo-900/40' : ''}`}>
+                                {formatDateHeader(d.date)}
+                            </th>
+                        ))}
+                        <th style={{ width: "60px" }} className="px-2 py-3 text-center font-black text-indigo-200 text-[10px]">Total</th>
+                        <th style={{ width: "75px" }} className="px-2 py-3 text-right text-[10px]">Hrly Rate</th>
+                        <th style={{ width: "85px" }} className="px-2 py-3 text-right font-black text-orange-200 text-[10px]">Cost</th>
+                        <th style={{ width: "75px" }} className="px-2 py-3 text-right text-[10px]">Inv Rate</th>
+                        <th style={{ width: "85px" }} className="px-2 py-3 text-right font-black text-emerald-200 text-[10px]">Charge</th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-xs text-slate-600 font-medium">
+                    {data.map((row, index) => {
+                        const totalRowHrsVal = getRowTotal(row);
+                        const rowRate = row.rate;
+                        const rowCost = totalRowHrsVal * rowRate;
+                        const rowCharge = totalRowHrsVal * row.invoiceRate;
+                        const isSmoke = index % 2 === 0;
+                        const rowBg = isSmoke ? "bg-[#F9FAFC] hover:bg-slate-100/80" : "bg-white hover:bg-slate-50";
+                        const dayVal = (d) => formatDayValue(getDayHours(row, d));
+
+                        return (
+                            <tr key={row.key + "-" + row.type} className={`${rowBg} transition-all duration-150`}>
+                                 <td style={{ width: "120px" }} className={`px-2 py-2 text-slate-800 font-bold shadow-[2px_0_5px_rgba(0,0,0,0.02)] ${isSmoke ? "bg-[#F9FAFC]" : "bg-white"} text-center`}>
+                                      <div className="flex flex-wrap gap-x-1 gap-y-0 justify-center font-mono text-[12px] leading-tight">
+                                          {[...(row.timesheetNumbers || [])].sort().map((num, i) => (
+                                              <span key={i}>{num}</span>
+                                          ))}
+                                      </div>
+                                 </td>
+                                 <td style={{ width: "200px" }} className={`px-3 py-2 text-slate-800 font-bold shadow-[2px_0_5px_rgba(0,0,0,0.02)] ${isSmoke ? "bg-[#F9FAFC]" : "bg-white"} flex flex-col gap-0.5`}>
+                                     <span className="text-[11px]">{getOccupationDisplay(row)}</span>
+                                     <span className="text-[9px] font-normal text-slate-900">[{row.type}]</span>
+                                 </td>
+                                 <td style={{ width: "45px" }} className={`px-2 py-2 text-center font-mono ${row.entry.NT.mon + row.entry.OT.mon + row.entry.DT.mon > 0 ? "text-slate-900 font-bold" : "text-slate-300"} text-[11px]`}>{dayVal("mon")}</td>
+                                <td style={{ width: "45px" }} className={`px-2 py-2 text-center font-mono ${row.entry.NT.tue + row.entry.OT.tue + row.entry.DT.tue > 0 ? "text-slate-900 font-bold" : "text-slate-300"} text-[11px]`}>{dayVal("tue")}</td>
+                                <td style={{ width: "45px" }} className={`px-2 py-2 text-center font-mono ${row.entry.NT.wed + row.entry.OT.wed + row.entry.DT.wed > 0 ? "text-slate-900 font-bold" : "text-slate-300"} text-[11px]`}>{dayVal("wed")}</td>
+                                <td style={{ width: "45px" }} className={`px-2 py-2 text-center font-mono ${row.entry.NT.thu + row.entry.OT.thu + row.entry.DT.thu > 0 ? "text-slate-900 font-bold" : "text-slate-300"} text-[11px]`}>{dayVal("thu")}</td>
+                                <td style={{ width: "45px" }} className={`px-2 py-2 text-center font-mono ${row.entry.NT.fri + row.entry.OT.fri + row.entry.DT.fri > 0 ? "text-slate-900 font-bold" : "text-slate-300"} text-[11px]`}>{dayVal("fri")}</td>
+                                <td style={{ width: "45px" }} className={`px-2 py-2 text-center font-mono bg-amber-50/40 text-amber-800 ${row.entry.NT.sat + row.entry.OT.sat + row.entry.DT.sat > 0 ? "font-bold" : "text-slate-300"} text-[11px]`}>{dayVal("sat")}</td>
+                                <td style={{ width: "45px" }} className={`px-2 py-2 text-center font-mono bg-amber-50/40 text-amber-800 border-r border-slate-100 ${row.entry.NT.sun + row.entry.OT.sun + row.entry.DT.sun > 0 ? "font-bold" : "text-slate-300"} text-[11px]`}>{dayVal("sun")}</td>
+                                <td style={{ width: "60px" }} className="px-2 py-2 text-center font-black text-indigo-600 bg-indigo-50/40 text-[11px]">{totalRowHrsVal.toFixed(2)}</td>
+                                <td style={{ width: "75px" }} className="px-2 py-2 text-right font-mono font-bold text-slate-900 text-[11px]">R {rowRate.toFixed(2)}</td>
+                                <td style={{ width: "85px" }} className="px-2 py-2 text-right font-mono font-black text-slate-900 bg-orange-50/40 text-[11px]">R {rowCost.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                <td style={{ width: "75px" }} className="px-2 py-2 text-right font-mono font-bold text-slate-900 text-[11px]">R {row.invoiceRate.toFixed(2)}</td>
+                                <td style={{ width: "85px" }} className="px-2 py-2 text-right font-mono font-black text-slate-900 bg-emerald-50/40 text-[11px]">R {rowCharge.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                            </tr>
+                        );
+                    })}
+                    <tr className="bg-slate-100/90 text-slate-900 font-black text-xs border-t-2 border-slate-300">
+                        <td style={{ width: "120px" }} className="px-2 py-2.5 bg-slate-100 shadow-[2px_0_5px_rgba(0,0,0,0.05)]"></td>
+                        <td style={{ width: "200px" }} className="px-3 py-2.5 bg-slate-100 shadow-[2px_0_5px_rgba(0,0,0,0.05)] font-black uppercase tracking-wider text-slate-800">
+                            Grand Total
+                        </td>
+                        <td style={{ width: "45px" }} className="px-2 py-2.5 text-center font-mono">{totals.mon.toFixed(2)}</td>
+                        <td style={{ width: "45px" }} className="px-2 py-2.5 text-center font-mono">{totals.tue.toFixed(2)}</td>
+                        <td style={{ width: "45px" }} className="px-2 py-2.5 text-center font-mono">{totals.wed.toFixed(2)}</td>
+                        <td style={{ width: "45px" }} className="px-2 py-2.5 text-center font-mono">{totals.thu.toFixed(2)}</td>
+                        <td style={{ width: "45px" }} className="px-2 py-2.5 text-center font-mono">{totals.fri.toFixed(2)}</td>
+                        <td style={{ width: "45px" }} className="px-2 py-2.5 text-center font-mono bg-amber-100/50">{totals.sat.toFixed(2)}</td>
+                        <td style={{ width: "45px" }} className="px-2 py-2.5 text-center font-mono bg-amber-100/50 border-r border-slate-200">{totals.sun.toFixed(2)}</td>
+                        <td style={{ width: "60px" }} className="px-2 py-2.5 text-center font-mono bg-indigo-100 text-indigo-900 text-[11px] font-black">{totals.totalHrs.toFixed(2)}</td>
+                        <td style={{ width: "75px" }} className="px-2 py-2.5 text-right text-[9px] text-slate-400">Average Rate</td>
+                        <td style={{ width: "85px" }} className="px-2 py-2.5 text-right font-mono text-[11px] font-black text-slate-900 bg-orange-100">
+                            R {totals.cost.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td style={{ width: "75px" }} className="px-2 py-2.5 text-right text-[9px] text-slate-400">Average Inv</td>
+                        <td style={{ width: "85px" }} className="px-2 py-2.5 text-right font-mono text-[11px] font-black text-slate-900 bg-emerald-100">
+                            R {totals.charge.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        );
+    };
+
+    const renderClientCostingTable = () => {
+        const days = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+        const dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+        const clientRows = clientCostingData;
+        const fmt = (val) => val > 0.005 ? val.toFixed(2) : "0.00";
+
+        let grandTotalNT = 0;
+        let grandTotalOT = 0;
+        let grandTotalDT = 0;
+        let grandTotalCharge = 0;
+        let grandTotalNTCharge = 0;
+        let grandTotalOTCharge = 0;
+        let grandTotalDTCharge = 0;
+
+        days.forEach((d) => {
+            grandTotalNT += clientRows.reduce((sum, r) => sum + (r.NT[d] || 0), 0);
+            grandTotalOT += clientRows.reduce((sum, r) => sum + (r.OT[d] || 0), 0);
+            grandTotalDT += clientRows.reduce((sum, r) => sum + (r.DT[d] || 0), 0);
+        });
+        grandTotalCharge = clientRows.reduce((sum, r) => sum + r.totalCharge, 0);
+        grandTotalNTCharge = clientRows.reduce((sum, r) => sum + (r.totalNT * r.chargeRateNT), 0);
+        grandTotalOTCharge = clientRows.reduce((sum, r) => sum + (r.totalOT * r.chargeRateOT), 0);
+        grandTotalDTCharge = clientRows.reduce((sum, r) => sum + (r.totalDT * r.chargeRateDT), 0);
+
+        return (
+            <div ref={clientPdfRef} className="overflow-x-auto">
+                    <table className="border-collapse border-spacing-0 text-left w-full" style={{ minWidth: "1100px" }}>
+                        <thead>
+                            <tr className="bg-[#2D328F]">
+                                <th colSpan="3" className="px-3 py-2.5 text-[10px] font-black tracking-widest text-slate-200 border-r border-slate-700/50 uppercase">Employee Info</th>
+                                <th colSpan="3" className="px-3 py-2.5 text-center text-[10px] font-black tracking-widest text-slate-200 border-r border-slate-700/50 uppercase">Charge Rates (R)</th>
+                                <th colSpan="13" className="px-3 py-2.5 text-center text-[10px] font-black tracking-widest text-slate-200 border-r border-slate-700/50 uppercase">Daily Hours Breakdown</th>
+                                <th colSpan="3" className="px-3 py-2.5 text-center text-[10px] font-black tracking-widest text-slate-200 border-r border-slate-700/50 uppercase">Total Hours</th>
+                                <th colSpan="3" className="px-3 py-2.5 text-center text-[10px] font-black tracking-widest text-slate-200 border-r border-slate-700/50 uppercase">Charge Rates (R)</th>
+                                <th className="px-3 py-2.5 text-right text-[10px] font-black tracking-widest text-slate-200 uppercase">Total Charge</th>
+                            </tr>
+                            <tr className="bg-[#2D328F]/95 text-[10px] font-bold text-white uppercase tracking-wider sticky top-0 z-10 border-b border-slate-700">
+                                <th style={{ width: "110px" }} className="px-2 py-2.5 bg-[#2D328F] text-[9px]">Employee Name</th>
+                                <th style={{ width: "55px" }} className="px-2 py-2.5 bg-[#2D328F] text-[9px]">Emp No</th>
+                                <th style={{ width: "95px" }} className="px-2 py-2.5 bg-[#2D328F] text-[9px]">Position</th>
+                                <th style={{ width: "50px" }} className="px-1.5 py-2.5 text-right bg-[#2D328F] text-[9px] bg-orange-900/20 text-orange-100">Chg NT</th>
+                                <th style={{ width: "50px" }} className="px-1.5 py-2.5 text-right bg-[#2D328F] text-[9px] bg-orange-900/20 text-orange-100">Chg OT</th>
+                                <th style={{ width: "50px" }} className="px-1.5 py-2.5 text-right bg-[#2D328F] text-[9px] border-r border-slate-700/40 bg-orange-900/20 text-orange-100">Chg DT</th>
+                            {dayLabels.map((label, i) => (
+                                <th key={label} colSpan={i === 6 ? 1 : 2} style={{ width: i === 6 ? "38px" : "72px" }} className={`px-1.5 py-2.5 text-center bg-indigo-950/25 text-[9px] ${i >= 5 ? 'bg-amber-500/20 text-amber-200' : ''} ${i === 6 ? 'border-r border-indigo-900/40' : ''}`}>
+                                    {label}
+                                </th>
+                            ))}
+                                <th style={{ width: "40px" }} className="px-1.5 py-2.5 text-center font-black text-indigo-200 text-[9px]">N/T</th>
+                                <th style={{ width: "40px" }} className="px-1.5 py-2.5 text-center font-black text-indigo-200 text-[9px]">O/T</th>
+                                <th style={{ width: "40px" }} className="px-1.5 py-2.5 text-center font-black text-indigo-200 text-[9px] border-r border-slate-700/40">D/T</th>
+                                <th style={{ width: "50px" }} className="px-1.5 py-2.5 text-right text-[9px]">Chg NT</th>
+                                <th style={{ width: "50px" }} className="px-1.5 py-2.5 text-right text-[9px]">Chg OT</th>
+                                <th style={{ width: "50px" }} className="px-1.5 py-2.5 text-right text-[9px] border-r border-slate-700/40">Chg DT</th>
+                                <th style={{ width: "68px" }} className="px-2 py-2.5 text-right font-black text-emerald-200 text-[9px]">Total</th>
+                            </tr>
+                        <tr className="bg-[#2D328F]/80 text-[9px] font-bold text-white uppercase tracking-wider border-b border-slate-700">
+                            <th style={{ width: "80px" }} className="px-1.5 py-1 bg-[#2D328F]"></th>
+                            <th style={{ width: "45px" }} className="px-1.5 py-1 bg-[#2D328F]"></th>
+                            <th style={{ width: "70px" }} className="px-1.5 py-1 bg-[#2D328F]"></th>
+                            <th style={{ width: "40px" }} className="px-1 py-1 text-right bg-[#2D328F]">NT</th>
+                            <th style={{ width: "40px" }} className="px-1 py-1 text-right bg-[#2D328F]">OT</th>
+                            <th style={{ width: "40px" }} className="px-1 py-1 text-right bg-[#2D328F] border-r border-slate-700/40">DT</th>
+                            {dayLabels.map((label, i) => (
+                                <th key={label + "-sub"} colSpan={i === 6 ? 1 : 2} style={{ width: i === 6 ? "30px" : "58px" }} className={`px-1 py-1 text-center bg-indigo-950/30 text-[8px] ${i >= 5 ? 'bg-amber-500/15' : ''}`}>
+                                    {i === 6 ? "D/T" : "N/T O/T"}
+                                </th>
+                            ))}
+                            <th style={{ width: "32px" }} className="px-1 py-1 text-center bg-[#2D328F]">Hrs</th>
+                            <th style={{ width: "32px" }} className="px-1 py-1 text-center bg-[#2D328F]">Hrs</th>
+                            <th style={{ width: "32px" }} className="px-1 py-1 text-center bg-[#2D328F] border-r border-slate-700/40">Hrs</th>
+                            <th style={{ width: "40px" }} className="px-1 py-1 text-right bg-[#2D328F]">R</th>
+                            <th style={{ width: "40px" }} className="px-1 py-1 text-right bg-[#2D328F]">R</th>
+                            <th style={{ width: "40px" }} className="px-1 py-1 text-right bg-[#2D328F] border-r border-slate-700/40">R</th>
+                            <th style={{ width: "55px" }} className="px-1.5 py-1 text-right bg-[#2D328F]">R</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-xs text-slate-600 font-medium">
+                        {clientRows.map((row, index) => {
+                            const isSmoke = index % 2 === 0;
+                            const rowBg = isSmoke ? "bg-[#F9FAFC] hover:bg-slate-100/80" : "bg-white hover:bg-slate-50";
+                            const fmt = (val) => val > 0.005 ? val.toFixed(2) : "0.00";
+
+                            return (
+                                <tr key={row.empNo + "-" + row.occupation} className={`${rowBg} transition-all duration-150`}>
+                                    <td style={{ width: "110px" }} className={`px-2 py-2 text-slate-800 font-bold ${isSmoke ? "bg-[#F9FAFC]" : "bg-white"} text-[11px]`}>
+                                        {row.employeeName || "-"}
+                                    </td>
+                                    <td style={{ width: "55px" }} className={`px-2 py-2 text-slate-800 font-bold ${isSmoke ? "bg-[#F9FAFC]" : "bg-white"} text-center font-mono text-[11px]`}>
+                                        {row.empNo || "-"}
+                                    </td>
+                                    <td style={{ width: "95px" }} className={`px-2 py-2 text-slate-800 font-bold ${isSmoke ? "bg-[#F9FAFC]" : "bg-white"} text-[11px]`}>
+                                        {row.occupation || "-"}
+                                    </td>
+                                    <td style={{ width: "50px" }} className={`px-1.5 py-2 text-right font-mono bg-orange-50/40 ${row.chargeRateNT > 0 ? "text-slate-900 font-bold" : "text-slate-300"} text-[10px]`}>R {row.chargeRateNT.toFixed(2)}</td>
+                                    <td style={{ width: "50px" }} className={`px-1.5 py-2 text-right font-mono bg-orange-50/40 ${row.chargeRateOT > 0 ? "text-slate-900 font-bold" : "text-slate-300"} text-[10px]`}>R {row.chargeRateOT.toFixed(2)}</td>
+                                    <td style={{ width: "50px" }} className={`px-1.5 py-2 text-right font-mono bg-orange-50/40 border-r border-slate-100 ${row.chargeRateDT > 0 ? "text-slate-900 font-bold" : "text-slate-300"} text-[10px]`}>R {row.chargeRateDT.toFixed(2)}</td>
+                                    {days.map((d) => (
+                                        <React.Fragment key={d}>
+                                            {d !== "sun" ? (
+                                                <>
+                                                    <td style={{ width: "36px" }} className={`px-1.5 py-2 text-center font-mono ${(row.NT[d] || 0) > 0 ? "text-slate-900 font-bold" : "text-slate-300"} text-[10px]`}>{fmt(row.NT[d] || 0)}</td>
+                                                    <td style={{ width: "36px" }} className={`px-1.5 py-2 text-center font-mono ${(row.OT[d] || 0) > 0 ? "text-slate-900 font-bold" : "text-slate-300"} text-[10px]`}>{fmt(row.OT[d] || 0)}</td>
+                                                </>
+                                            ) : (
+                                                <td style={{ width: "38px" }} className={`px-1.5 py-2 text-center font-mono ${(row.DT[d] || 0) > 0 ? "text-slate-900 font-bold" : "text-slate-300"} text-[10px]`}>{fmt(row.DT[d] || 0)}</td>
+                                            )}
+                                        </React.Fragment>
+                                    ))}
+                                    <td style={{ width: "40px" }} className="px-1.5 py-2 text-center font-black text-indigo-600 bg-indigo-50/30 text-[10px]">{fmt(row.totalNT)}</td>
+                                    <td style={{ width: "40px" }} className="px-1.5 py-2 text-center font-black text-indigo-600 bg-indigo-50/30 text-[10px]">{fmt(row.totalOT)}</td>
+                                    <td style={{ width: "40px" }} className="px-1.5 py-2 text-center font-black text-indigo-600 bg-indigo-50/30 border-r border-slate-200 text-[10px]">{fmt(row.totalDT)}</td>
+                                    <td style={{ width: "50px" }} className="px-1.5 py-2 text-right font-mono font-bold text-slate-900 text-[10px]">R {(row.totalNT * row.chargeRateNT).toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                    <td style={{ width: "50px" }} className="px-1.5 py-2 text-right font-mono font-bold text-slate-900 text-[10px]">R {(row.totalOT * row.chargeRateOT).toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                    <td style={{ width: "50px" }} className={`px-1.5 py-2 text-right font-mono font-bold text-slate-900 border-r border-slate-200 text-[10px]`}>R {(row.totalDT * row.chargeRateDT).toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                    <td style={{ width: "68px" }} className="px-2 py-2 text-right font-mono font-black text-slate-900 bg-emerald-50/40 text-[10px]">R {row.totalCharge.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                </tr>
+                            );
+                        })}
+                        {clientRows.length > 0 && (
+                            <tr className="bg-slate-100/90 text-slate-900 font-black text-xs border-t-2 border-slate-300">
+                                <td style={{ width: "110px" }} className="px-2 py-2.5 bg-slate-100 shadow-[2px_0_5px_rgba(0,0,0,0.05)]"></td>
+                                <td style={{ width: "55px" }} className="px-2 py-2.5 bg-slate-100 shadow-[2px_0_5px_rgba(0,0,0,0.05)]"></td>
+                                <td style={{ width: "95px" }} className="px-2 py-2.5 bg-slate-100 shadow-[2px_0_5px_rgba(0,0,0,0.05)] font-black uppercase tracking-wider text-slate-800">
+                                    Grand Total
+                                </td>
+                                <td style={{ width: "50px" }} className="px-1.5 py-2.5 bg-slate-100"></td>
+                                <td style={{ width: "50px" }} className="px-1.5 py-2.5 bg-slate-100"></td>
+                                <td style={{ width: "50px" }} className="px-1.5 py-2.5 bg-slate-100 border-r border-slate-200"></td>
+                                {days.map((d) => (
+                                    <React.Fragment key={d}>
+                                        {d !== "sun" ? (
+                                            <>
+                                                <td style={{ width: "36px" }} className={`px-1.5 py-2.5 text-center font-mono ${grandTotalNT > 0 ? "font-black text-slate-900" : "text-slate-400"} text-[10px]`}>{fmt(grandTotalNT > 0 ? (clientRows.reduce((sum, r) => sum + (r.NT[d] || 0), 0)) : 0)}</td>
+                                                <td style={{ width: "36px" }} className={`px-1.5 py-2.5 text-center font-mono ${grandTotalOT > 0 ? "font-black text-slate-900" : "text-slate-400"} text-[10px]`}>{fmt(grandTotalOT > 0 ? (clientRows.reduce((sum, r) => sum + (r.OT[d] || 0), 0)) : 0)}</td>
+                                            </>
+                                        ) : (
+                                            <td style={{ width: "38px" }} className={`px-1.5 py-2.5 text-center font-mono ${grandTotalDT > 0 ? "font-black text-slate-900" : "text-slate-400"} text-[10px]`}>{fmt(grandTotalDT > 0 ? (clientRows.reduce((sum, r) => sum + (r.DT[d] || 0), 0)) : 0)}</td>
+                                        )}
+                                    </React.Fragment>
+                                ))}
+                                <td style={{ width: "40px" }} className="px-1.5 py-2.5 text-center font-mono bg-indigo-100 text-indigo-900 text-[10px] font-black">{fmt(grandTotalNT)}</td>
+                                <td style={{ width: "40px" }} className="px-1.5 py-2.5 text-center font-mono bg-indigo-100 text-indigo-900 text-[10px] font-black">{fmt(grandTotalOT)}</td>
+                                <td style={{ width: "40px" }} className="px-1.5 py-2.5 text-center font-mono bg-indigo-100 border-r border-slate-200 text-[10px] font-black">{fmt(grandTotalDT)}</td>
+                                <td style={{ width: "50px" }} className="px-1.5 py-2.5 text-right font-mono bg-slate-100 text-[10px] font-black text-slate-900">R {grandTotalNTCharge.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                <td style={{ width: "50px" }} className="px-1.5 py-2.5 text-right font-mono bg-slate-100 text-[10px] font-black text-slate-900">R {grandTotalOTCharge.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                <td style={{ width: "50px" }} className="px-1.5 py-2.5 text-right font-mono bg-slate-100 border-r border-slate-200 text-[10px] font-black text-slate-900">R {grandTotalDTCharge.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                <td style={{ width: "68px" }} className="px-2 py-2.5 text-right font-mono text-[11px] font-black text-slate-900 bg-emerald-100">
+                                    R {grandTotalCharge.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </td>
+                            </tr>
+                        )}
+                    </tbody>
+                </table>
+            </div>
+        );
+    };
 
     if (loading) {
         return (
@@ -1077,12 +1418,32 @@ export default function CostingSchedule() {
                             className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-600/20 hover:shadow-indigo-600/30 transition-all flex items-center justify-center cursor-pointer disabled:bg-slate-300"
                         >
                             <DownloadIcon />
-                            {downloading ? "Generating PDF..." : "Download PDF Report"}
+                            {downloading ? "Generating PDF..." : (costingTab === 'clientSchedule' ? "Download Client Costing PDF" : "Download PDF Report")}
                         </button>
                     </div>
                 </div>
 
                 <div className="bg-white rounded-3xl shadow-xl shadow-slate-100/80 border border-slate-100/80">
+                    <div className="px-6 border-b border-slate-100 flex items-center gap-6">
+                        <button
+                            onClick={() => setCostingTab('schedule')}
+                            className={`pb-3 text-sm font-semibold transition ${costingTab === 'schedule'
+                                    ? "border-b-4 border-[#1742c4] text-[#1742c4]"
+                                    : "text-slate-400 hover:text-slate-600"
+                                }`}
+                        >
+                            Costing Schedule
+                        </button>
+                        <button
+                            onClick={() => setCostingTab('clientSchedule')}
+                            className={`pb-3 text-sm font-semibold transition ${costingTab === 'clientSchedule'
+                                    ? "border-b-4 border-[#1742c4] text-[#1742c4]"
+                                    : "text-slate-400 hover:text-slate-600"
+                                }`}
+                        >
+                            Client Costing Schedule
+                        </button>
+                    </div>
                     <div className="bg-slate-50/70 border-b border-slate-100 px-6 py-4 flex flex-col sm:flex-row justify-between sm:items-center gap-3">
                         <div className="flex items-center gap-2">
                             <CalendarIcon />
@@ -1134,103 +1495,19 @@ export default function CostingSchedule() {
                         </div>
                     </div>
 
-                    <div ref={pdfRef} className="overflow-y-auto max-h-[50vh] lg:max-h-[70vh]">
+                    <div ref={pdfRef} className="overflow-auto max-h-[50vh] lg:max-h-[70vh]">
                         {data.length === 0 ? (
                             <div className="text-center py-12 text-slate-400">
                                 <div className="text-slate-300 text-5xl mb-3">📊</div>
                                 <p className="font-semibold text-slate-600">No data available for this selection</p>
                                 <p className="text-xs mt-1">Select a client to view the costing schedule.</p>
                             </div>
-                        ) : (
-                            <table className="border-collapse border-spacing-0 text-left w-full">
-                                <thead>
-                                    <tr className="bg-[#2D328F]">
-                                        <th colSpan="2" className="px-4 py-2.5 text-[10px] font-black tracking-widest text-slate-200 border-r border-slate-700/50 uppercase">{activeClientName} - {selectedClientId}</th>
-                                        <th colSpan="7" className="px-4 py-2.5 text-center text-[10px] font-black tracking-widest text-slate-200 border-r border-slate-700/50 uppercase bg-indigo-950/40">Weekly Hours Breakdown</th>
-                                        <th colSpan="5" className="px-4 py-2.5 text-right text-[10px] font-black tracking-widest text-slate-200 uppercase">Costing & Billing Rates (R)</th>
-                                    </tr>
-                                    <tr className="bg-[#2D328F]/95 text-[11px] font-bold text-white uppercase tracking-wider sticky top-0 z-10 border-b border-slate-700">
-                                        <th style={{ width: "120px" }} className="px-2 py-3 bg-[#2D328F] shadow-[2px_0_5px_rgba(0,0,0,0.15)] text-[10px]">TS No</th>
-                                        <th style={{ width: "200px" }} className="px-3 py-3 bg-[#2D328F] shadow-[2px_0_5px_rgba(0,0,0,0.15)]">Role / Description</th>
-                                        {dates.map((d, i) => (
-                                            <th key={i} style={{ width: "45px" }} className={`px-1.5 py-3 text-center bg-indigo-950/25 text-[10px] ${i >= 5 ? 'bg-amber-500/20 text-amber-200' : ''} ${i === 6 ? 'border-r border-indigo-900/40' : ''}`}>
-                                                {formatDateHeader(d.date)}
-                                            </th>
-                                        ))}
-                                        <th style={{ width: "60px" }} className="px-2 py-3 text-center font-black text-indigo-200 text-[10px]">Total</th>
-                                        <th style={{ width: "75px" }} className="px-2 py-3 text-right text-[10px]">Hrly Rate</th>
-                                        <th style={{ width: "85px" }} className="px-2 py-3 text-right font-black text-orange-200 text-[10px]">Cost</th>
-                                        <th style={{ width: "75px" }} className="px-2 py-3 text-right text-[10px]">Inv Rate</th>
-                                        <th style={{ width: "85px" }} className="px-2 py-3 text-right font-black text-emerald-200 text-[10px]">Charge</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100 text-xs text-slncreateate-600 font-medium">
-                                    {data.map((row, index) => {
-                                        const totalRowHrs = getRowTotal(row);
-                                        const rowRate = row.rate;
-                                        const rowCost = totalRowHrs * rowRate;
-                                        const rowCharge = totalRowHrs * row.invoiceRate;
-                                        const isSmoke = index % 2 === 0;
-                                        const rowBg = isSmoke ? "bg-[#F9FAFC] hover:bg-slate-100/80" : "bg-white hover:bg-slate-50";
-                                        const dayVal = (d) => formatDayValue(getDayHours(row, d));
-
-                                        return (
-                                            <tr key={row.key + "-" + row.type} className={`${rowBg} transition-all duration-150`}>
-                                                 <td style={{ width: "120px" }} className={`px-2 py-2 text-slate-800 font-bold shadow-[2px_0_5px_rgba(0,0,0,0.02)] ${isSmoke ? "bg-[#F9FAFC]" : "bg-white"} text-center`}>
-                                                     {row.tsNumber ? (
-                                                         <span className="font-mono text-[12px]">{row.tsNumber}</span>
-                                                     ) : (
-                                                         <div className="flex flex-wrap gap-x-1 gap-y-0 justify-center font-mono text-[12px] leading-tight">
-                                                             {[...(row.timesheetNumbers || [])].sort().map((num, i) => (
-                                                                 <span key={i}>{num}</span>
-                                                             ))}
-                                                         </div>
-                                                     )}
-                                                 </td>
-                                                 <td style={{ width: "200px" }} className={`px-3 py-2 text-slate-800 font-bold shadow-[2px_0_5px_rgba(0,0,0,0.02)] ${isSmoke ? "bg-[#F9FAFC]" : "bg-white"} flex flex-col gap-0.5`}>
-                                                     <span className="text-[11px]">{getOccupationDisplay(row)}</span>
-                                                     <span className="text-[9px] font-normal text-slate-900">[{row.type}]</span>
-                                                 </td>
-                                                 <td style={{ width: "45px" }} className={`px-2 py-2 text-center font-mono ${row.entry.NT.mon + row.entry.OT.mon + row.entry.DT.mon > 0 ? "text-slate-900 font-bold" : "text-slate-300"} text-[11px]`}>{dayVal("mon")}</td>
-                                                <td style={{ width: "45px" }} className={`px-2 py-2 text-center font-mono ${row.entry.NT.tue + row.entry.OT.tue + row.entry.DT.tue > 0 ? "text-slate-900 font-bold" : "text-slate-300"} text-[11px]`}>{dayVal("tue")}</td>
-                                                <td style={{ width: "45px" }} className={`px-2 py-2 text-center font-mono ${row.entry.NT.wed + row.entry.OT.wed + row.entry.DT.wed > 0 ? "text-slate-900 font-bold" : "text-slate-300"} text-[11px]`}>{dayVal("wed")}</td>
-                                                <td style={{ width: "45px" }} className={`px-2 py-2 text-center font-mono ${row.entry.NT.thu + row.entry.OT.thu + row.entry.DT.thu > 0 ? "text-slate-900 font-bold" : "text-slate-300"} text-[11px]`}>{dayVal("thu")}</td>
-                                                <td style={{ width: "45px" }} className={`px-2 py-2 text-center font-mono ${row.entry.NT.fri + row.entry.OT.fri + row.entry.DT.fri > 0 ? "text-slate-900 font-bold" : "text-slate-300"} text-[11px]`}>{dayVal("fri")}</td>
-                                                <td style={{ width: "45px" }} className={`px-2 py-2 text-center font-mono bg-amber-50/40 text-amber-800 ${row.entry.NT.sat + row.entry.OT.sat + row.entry.DT.sat > 0 ? "font-bold" : "text-slate-300"} text-[11px]`}>{dayVal("sat")}</td>
-                                                <td style={{ width: "45px" }} className={`px-2 py-2 text-center font-mono bg-amber-50/40 text-amber-800 border-r border-slate-100 ${row.entry.NT.sun + row.entry.OT.sun + row.entry.DT.sun > 0 ? "font-bold" : "text-slate-300"} text-[11px]`}>{dayVal("sun")}</td>
-                                                <td style={{ width: "60px" }} className="px-2 py-2 text-center font-black text-indigo-600 bg-indigo-50/40 text-[11px]">{totalRowHrs.toFixed(2)}</td>
-                                                <td style={{ width: "75px" }} className="px-2 py-2 text-right font-mono font-bold text-slate-900 text-[11px]">R {rowRate.toFixed(2)}</td>
-                                                <td style={{ width: "85px" }} className="px-2 py-2 text-right font-mono font-black text-slate-900 bg-orange-50/40 text-[11px]">R {rowCost.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                                                <td style={{ width: "75px" }} className="px-2 py-2 text-right font-mono font-bold text-slate-900 text-[11px]">R {row.invoiceRate.toFixed(2)}</td>
-                                                <td style={{ width: "85px" }} className="px-2 py-2 text-right font-mono font-black text-slate-900 bg-emerald-50/40 text-[11px]">R {rowCharge.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                                            </tr>
-                                        );
-                                    })}
-                                    <tr className="bg-slate-100/90 text-slate-900 font-black text-xs border-t-2 border-slate-300">
-                                        <td style={{ width: "120px" }} className="px-2 py-2.5 bg-slate-100 shadow-[2px_0_5px_rgba(0,0,0,0.05)]"></td>
-                                        <td style={{ width: "200px" }} className="px-3 py-2.5 bg-slate-100 shadow-[2px_0_5px_rgba(0,0,0,0.05)] font-black uppercase tracking-wider text-slate-800">
-                                            Grand Total
-                                        </td>
-                                        <td style={{ width: "45px" }} className="px-2 py-2.5 text-center font-mono">{totals.mon.toFixed(2)}</td>
-                                        <td style={{ width: "45px" }} className="px-2 py-2.5 text-center font-mono">{totals.tue.toFixed(2)}</td>
-                                        <td style={{ width: "45px" }} className="px-2 py-2.5 text-center font-mono">{totals.wed.toFixed(2)}</td>
-                                        <td style={{ width: "45px" }} className="px-2 py-2.5 text-center font-mono">{totals.thu.toFixed(2)}</td>
-                                        <td style={{ width: "45px" }} className="px-2 py-2.5 text-center font-mono">{totals.fri.toFixed(2)}</td>
-                                        <td style={{ width: "45px" }} className="px-2 py-2.5 text-center font-mono bg-amber-100/50">{totals.sat.toFixed(2)}</td>
-                                        <td style={{ width: "45px" }} className="px-2 py-2.5 text-center font-mono bg-amber-100/50 border-r border-slate-200">{totals.sun.toFixed(2)}</td>
-                                        <td style={{ width: "60px" }} className="px-2 py-2.5 text-center font-mono bg-indigo-100 text-indigo-900 text-[11px] font-black">{totals.totalHrs.toFixed(2)}</td>
-                                        <td style={{ width: "75px" }} className="px-2 py-2.5 text-right text-[9px] text-slate-400">Average Rate</td>
-                                        <td style={{ width: "85px" }} className="px-2 py-2.5 text-right font-mono text-[11px] font-black text-slate-900 bg-orange-100">
-                                            R {totals.cost.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                        </td>
-                                        <td style={{ width: "75px" }} className="px-2 py-2.5 text-right text-[9px] text-slate-400">Average Inv</td>
-                                        <td style={{ width: "85px" }} className="px-2 py-2.5 text-right font-mono text-[11px] font-black text-slate-900 bg-emerald-100">
-                                            R {totals.charge.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        )}
+                        ) : (() => {
+                            if (costingTab === 'schedule') {
+                                return renderScheduleTable();
+                            }
+                            return renderClientCostingTable();
+                        })()}
                     </div>
 
                     <div className="bg-slate-50 px-6 py-4 border-t border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 text-xs text-slate-500">
