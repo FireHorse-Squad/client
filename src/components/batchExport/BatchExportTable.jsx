@@ -1,13 +1,68 @@
-import React, { useState } from "react";
-import { FileDown, ArrowUpDown } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { FileDown, ArrowUpDown, CheckSquare, Square } from "lucide-react";
 import Pagination from "@mui/material/Pagination";
 import Stack from "@mui/material/Stack";
+
+const EXPORTED_ROWS_STORAGE_PREFIX = "batchExport.exportedRows.";
+
+const rowSignature = (row) => {
+    if (!row) return "";
+    return [
+        row.co_number,
+        row.transactionCode,
+        row.jobCode,
+        row.costCentre,
+        row.qtyHrs,
+        row.rate,
+        row.amount,
+        row.override,
+        row.shiftType,
+    ]
+        .map((value) => String(value ?? ""))
+        .join("|");
+};
+
+const signatureHash = (signature) => {
+    let hash = 5381;
+    for (let i = 0; i < signature.length; i++) {
+        hash = (hash * 33) ^ signature.charCodeAt(i);
+    }
+    return (hash >>> 0).toString(36);
+};
+
+const getExportedRowsStorageKey = (clientId) =>
+    `${EXPORTED_ROWS_STORAGE_PREFIX}${clientId ?? "default"}`;
 
 const BatchExportTable = ({ data, rowsPerPage = 20, clientId = null }) => {
     const [page, setPage] = useState(1);
     const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+    const [selectedRows, setSelectedRows] = useState(new Set());
+    const [exportedRows, setExportedRows] = useState(new Set());
 
     const safeData = data || [];
+
+    useEffect(() => {
+        let stored = null;
+        try {
+            const raw = localStorage.getItem(getExportedRowsStorageKey(clientId));
+            stored = raw ? JSON.parse(raw) : null;
+        } catch {
+            stored = null;
+        }
+
+        const restored = new Set();
+        if (stored && typeof stored === "object") {
+            Object.entries(stored).forEach(([indexKey, hash]) => {
+                const row = safeData[Number(indexKey)];
+                if (row && signatureHash(rowSignature(row)) === hash) {
+                    restored.add(row);
+                }
+            });
+        }
+
+        setExportedRows(restored);
+        setSelectedRows(new Set());
+    }, [safeData, clientId]);
 
     const handleChange = (event, value) => {
         setPage(value);
@@ -49,6 +104,38 @@ const BatchExportTable = ({ data, rowsPerPage = 20, clientId = null }) => {
     const endIndex = startIndex + rowsPerPage;
     const paginatedData = sortedData.slice(startIndex, endIndex);
     const pageCount = Math.ceil(sortedData.length / rowsPerPage);
+
+    const allCurrentPageSelected =
+        paginatedData.length > 0 &&
+        paginatedData.every((_, i) => selectedRows.has(startIndex + i));
+
+    const handleSelectRow = (sortedIndex) => {
+        setSelectedRows((prev) => {
+            const next = new Set(prev);
+            if (next.has(sortedIndex)) {
+                next.delete(sortedIndex);
+            } else {
+                next.add(sortedIndex);
+            }
+            return next;
+        });
+    };
+
+    const handleSelectAll = () => {
+        const isAllSelected = paginatedData.every((_, i) => selectedRows.has(startIndex + i));
+        setSelectedRows((prev) => {
+            const next = new Set(prev);
+            paginatedData.forEach((_, i) => {
+                const idx = startIndex + i;
+                if (isAllSelected) {
+                    next.delete(idx);
+                } else {
+                    next.add(idx);
+                }
+            });
+            return next;
+        });
+    };
 
     // const exportToCSV = () => {
     //     const rows = (safeData || []).map((row) => [
@@ -105,7 +192,14 @@ const BatchExportTable = ({ data, rowsPerPage = 20, clientId = null }) => {
     // };
 
 const exportToTXT = () => {
-        const rows = (safeData || []).map((row) => [
+        let exportData = safeData;
+
+        if (selectedRows.size > 0) {
+            exportData = Array.from(selectedRows)
+                .sort((a, b) => a - b)
+                .map((i) => sortedData[i]);
+        }
+        const rows = (exportData || []).map((row) => [
             String(row.co_number ?? ""),
             String(row.transactionCode ?? ""),
             String(row.jobCode ?? ""),
@@ -129,10 +223,33 @@ const exportToTXT = () => {
   const filename = clientId ? `batch_export_client_${clientId}.txt` : "batch_export.txt";
   link.setAttribute("download", filename);
   
-  link.style.visibility = "hidden";
-  document.body.appendChild(link);
-  link.click();
+   link.style.visibility = "hidden";
+   document.body.appendChild(link);
+   link.click();
   document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+
+  const indexByRow = new Map();
+  safeData.forEach((row, index) => indexByRow.set(row, index));
+
+  const mergedRows = new Set([...exportedRows, ...exportData]);
+
+  const signatures = {};
+  mergedRows.forEach((row) => {
+      const index = indexByRow.get(row);
+      if (index !== undefined) {
+          signatures[index] = signatureHash(rowSignature(row));
+      }
+  });
+
+  try {
+      localStorage.setItem(getExportedRowsStorageKey(clientId), JSON.stringify(signatures));
+  } catch {
+      // storage unavailable; highlighting still applies for this session
+  }
+
+  setExportedRows(mergedRows);
+  setSelectedRows(new Set());
 };
 
     return (
@@ -157,6 +274,19 @@ const exportToTXT = () => {
                 <table className="w-full border-separate border-spacing-0 table-fixed select-text">
                     <thead className="sticky top-0 z-20">
                         <tr>
+                            <th style={{ minWidth: '40px', width: '40px' }} className="px-2 py-3.5 text-center text-xs font-bold text-white uppercase tracking-wider bg-[#2D328F]">
+                                <button
+                                    onClick={handleSelectAll}
+                                    className="hover:opacity-80 transition"
+                                    title={allCurrentPageSelected ? "Deselect All" : "Select All"}
+                                >
+                                    {allCurrentPageSelected ? (
+                                        <CheckSquare className="w-4 h-4 text-white" />
+                                    ) : (
+                                        <Square className="w-4 h-4 text-white/70" />
+                                    )}
+                                </button>
+                            </th>
                             <th className="px-4 py-3.5 text-left text-xs font-bold text-white uppercase tracking-wider cursor-pointer hover:bg-[#1742c4] transition bg-[#2D328F]" onClick={() => handleSort('co_number')}>
                                 <div className="flex items-center gap-1">co_number <ArrowUpDown className="w-3 h-3" /></div>
                             </th>
@@ -187,9 +317,26 @@ const exportToTXT = () => {
                     <tbody className="divide-y divide-slate-200 bg-white">
                         {paginatedData.map((row, index) => {
                             const isEven = index % 2 === 0;
-                            const rowClass = isEven ? 'bg-[#F5F7FA] hover:bg-slate-200/80 transition-colors' : 'bg-white hover:bg-slate-100 transition-colors';
+                            const rowClass = exportedRows.has(row)
+                                ? 'bg-indigo-100 hover:bg-indigo-200 transition-colors'
+                                : isEven
+                                    ? 'bg-[#F5F7FA] hover:bg-slate-200/80 transition-colors'
+                                    : 'bg-white hover:bg-slate-100 transition-colors';
                             return (
                                 <tr key={index} className={rowClass}>
+                                    <td style={{ minWidth: '40px', width: '40px' }} className="px-2 py-3 text-xs border-r border-slate-200/60 text-center">
+                                        <button
+                                            onClick={() => handleSelectRow(startIndex + index)}
+                                            className={`transition ${selectedRows.has(startIndex + index) ? "text-[#1742c4]" : "text-slate-300 hover:text-slate-400"}`}
+                                            title={selectedRows.has(startIndex + index) ? "Deselect" : "Select"}
+                                        >
+                                            {selectedRows.has(startIndex + index) ? (
+                                                <CheckSquare className="w-4 h-4" />
+                                            ) : (
+                                                <Square className="w-4 h-4" />
+                                            )}
+                                        </button>
+                                    </td>
                                     <td className="px-4 py-3 text-xs border-r border-slate-200/60 truncate text-slate-700 font-medium text-left">{row.co_number}</td>
                                     <td className="px-4 py-3 text-xs border-r border-slate-200/60 truncate text-slate-700 font-medium text-left">{row.transactionCode}</td>
                                     <td className="px-4 py-3 text-xs border-r border-slate-200/60 truncate text-slate-700 font-medium text-left">{row.jobCode}</td>

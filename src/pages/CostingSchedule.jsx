@@ -67,7 +67,7 @@ const formatDateHeader = (dateStr) => {
     return `${date.getDate()} ${months[date.getMonth()]}`;
 };
 
-const processCostingData = (timesheets, clientRates, employees, publicHolidays = [], referenceDate = null, skipWeekFilter = false) => {
+const processCostingData = (timesheets, clientRates, employees, publicHolidays = [], referenceDate = null, skipWeekFilter = false, groupByEmployee = true) => {
     let filteredTimesheets = timesheets.filter((ts) => {
         const adjustedDate = getAdjustedDate(ts.timesheet_date);
         return adjustedDate && ts.status !== "archived";
@@ -203,7 +203,10 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
             }
 
             types.forEach(({ type, hours }) => {
-                const groupKey = `${timesheet.co_number || timesheet.empNo || timesheet.employee_no || ""}|${timesheet.client_id || ""}|${occupation}|${type}|${timesheet.timesheet_number || ""}`;
+                const empKey = timesheet.co_number || timesheet.empNo || timesheet.employee_no || "";
+                const groupKey = groupByEmployee
+                    ? `${empKey}|${timesheet.client_id || ""}|${occupation}|${type}|${timesheet.timesheet_number || ""}`
+                    : `${timesheet.client_id || ""}|${occupation}|${type}|${timesheet.timesheet_number || ""}`;
                 if (!data[groupKey]) {
                     const matchedEmployee = employees.find((emp) => {
                         const coNumber = (timesheet.co_number || timesheet.empNo || timesheet.employee_no || "").toString().trim();
@@ -255,7 +258,9 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
         allSummaries.forEach((summary) => {
             const fullRate = findRate(clientRates, summary.client_id, summary.occupation);
             const getOrCreateEntry = (tsNum) => {
-                const entryKey = `${summary.co_number}|${summary.client_id}|${summary.occupation}|${tsNum || ""}`;
+                const entryKey = groupByEmployee
+                    ? `${summary.co_number}|${summary.client_id}|${summary.occupation}|${tsNum || ""}`
+                    : `${summary.client_id}|${summary.occupation}|${tsNum || ""}`;
                 if (!data[entryKey]) {
                     data[entryKey] = {
                         client_id: summary.client_id,
@@ -440,6 +445,9 @@ const processCostingData = (timesheets, clientRates, employees, publicHolidays =
                 const parts = row.key.split("|");
                 if (parts.length === 5) {
                     return parts.slice(0, 3).concat(parts[4]).join("|");
+                }
+                if (parts.length === 4) {
+                    return parts.slice(0, 2).concat(parts[3]).join("|");
                 }
                 return row.key;
             };
@@ -894,7 +902,7 @@ export default function CostingSchedule() {
         });
     }, []);
 
-    const { data, dates, allData } = useMemo(() => {
+    const { data, dates, allData, clientScheduleRawData } = useMemo(() => {
         let filteredTimesheets = allTimesheets.filter((ts) => ts.status !== "archived");
         let filteredClientRates = allClientRates;
 
@@ -919,14 +927,15 @@ export default function CostingSchedule() {
             );
         }
 
-        const allResult = processCostingData(filteredTimesheets, filteredClientRates, allEmployees, publicHolidays, null, true);
-        const weekResult = processCostingData(filteredTimesheets, filteredClientRates, allEmployees, publicHolidays, currentWeekStart, false);
-        return { data: weekResult.data, dates: weekResult.dates, allData: allResult.data };
+        const allResult = processCostingData(filteredTimesheets, filteredClientRates, allEmployees, publicHolidays, null, true, false);
+        const weekResult = processCostingData(filteredTimesheets, filteredClientRates, allEmployees, publicHolidays, currentWeekStart, false, false);
+        const clientWeekResult = processCostingData(filteredTimesheets, filteredClientRates, allEmployees, publicHolidays, currentWeekStart, false, true);
+        return { data: weekResult.data, dates: weekResult.dates, allData: allResult.data, clientScheduleRawData: clientWeekResult.data };
     }, [allTimesheets, allClientRates, allEmployees, publicHolidays, selectedClientName, selectedClientId, selectedTsNo, currentWeekStart]);
 
     const clientCostingData = useMemo(() => {
-        return processClientCostingData(data, allEmployees);
-    }, [data, allEmployees, processClientCostingData]);
+        return processClientCostingData(clientScheduleRawData, allEmployees);
+    }, [clientScheduleRawData, allEmployees, processClientCostingData]);
 
     const totals = useMemo(() => {
         let monTot = 0, tueTot = 0, wedTot = 0, thuTot = 0, friTot = 0, satTot = 0, sunTot = 0;
