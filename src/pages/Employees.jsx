@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import api from '../utils/api';
-import { onDataChange } from '../utils/dataSync';
-import { Plus, Edit, Trash2, X, AlertCircle, CheckSquare, Square } from 'lucide-react';
+import { onDataChange, dispatchDataChange } from '../utils/dataSync';
+import { Plus, Edit, Trash2, X, AlertCircle, CheckSquare, Square, FileSpreadsheet } from 'lucide-react';
 import BulkDeleteModal from '../components/common/BulkDeleteModal';
 
 const HEADER_BG = '#2D328F';
@@ -30,6 +30,9 @@ export default function Employees() {
     const [rowsPerPage, setRowsPerPage] = useState(10);
     const [searchTerm, setSearchTerm] = useState('');
     const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+    const [importing, setImporting] = useState(false);
+    const [importMsg, setImportMsg] = useState(null);
+    const csvInputRef = useRef(null);
 
     const fetchEmployees = useCallback(async () => {
         try {
@@ -83,6 +86,33 @@ export default function Employees() {
             setError(err.response?.data?.message || 'Failed to save employee');
         } finally {
             setSubmitting(false);
+        }
+    };
+
+    const handleCSVImport = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        if (!file.name.toLowerCase().match(/\.(csv|tsv|txt|xlsx)$/)) {
+            setImportMsg({ type: 'error', text: 'Please select a CSV or Excel file to import' });
+            e.target.value = '';
+            return;
+        }
+
+        setImporting(true);
+        setImportMsg(null);
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            const res = await api.post('/employees/import', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+            setImportMsg({ type: 'success', text: res.data.message || `Imported ${res.data.imported} employees` });
+            dispatchDataChange('csv-import');
+            await fetchEmployees();
+        } catch (err) {
+            setImportMsg({ type: 'error', text: err.response?.data?.message || 'CSV import failed' });
+        } finally {
+            setImporting(false);
+            e.target.value = '';
         }
     };
 
@@ -190,11 +220,27 @@ export default function Employees() {
                             <p className="text-xs text-slate-500 font-medium">Employee roster and management.</p>
                         </div>
                     </div>
-                    <button onClick={() => handleOpenModal()} className="w-full sm:w-auto px-4 py-3 sm:py-2 bg-[#1742c4] hover:bg-blue-800 text-white text-xs font-bold rounded-lg shadow transition flex items-center justify-center gap-2 min-h-[44px]"><Plus size={16} /> Add Employee</button>
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => csvInputRef.current?.click()}
+                            disabled={importing}
+                            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100/80 active:scale-[0.98] border border-emerald-200/80 hover:border-emerald-300 shadow-xs disabled:opacity-50"
+                        >
+                            <FileSpreadsheet className="w-4 h-4 text-emerald-600" strokeWidth={2.2} />
+                            <span>{importing ? 'Importing...' : 'Import Employees'}</span>
+                        </button>
+                        <input ref={csvInputRef} type="file" accept=".csv,.tsv,.txt,.xlsx" className="hidden" onChange={handleCSVImport} />
+                        <button onClick={() => handleOpenModal()} className="w-full sm:w-auto px-4 py-3 sm:py-2 bg-[#1742c4] hover:bg-blue-800 text-white text-xs font-bold rounded-lg shadow transition flex items-center justify-center gap-2 min-h-[44px]"><Plus size={16} /> Add Employee</button>
+                    </div>
                 </div>
             </div>
 
             {error && <div className="p-4 bg-red-50 border border-red-200 text-red-600 rounded-lg">{error}</div>}
+            {importMsg && (
+                <div className={`p-4 rounded-lg text-xs ${importMsg.type === 'success' ? 'bg-green-50 border border-green-200 text-green-600' : 'bg-red-50 border border-red-200 text-red-600'}`}>
+                    {importMsg.text}
+                </div>
+            )}
 
             <div className="w-full bg-white py-4 sm:py-6 px-2 sm:px-4 flex flex-col font-sans">
                 <div className="w-full flex flex-col bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden">

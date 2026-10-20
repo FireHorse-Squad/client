@@ -291,6 +291,10 @@ export const calculateBatchExportRow = (timesheet, clientRates) => {
     const isAdHoc = timesheet.shift_type === "Ad-Hoc" || timesheet.shift_type === "Adhoc";
     const effectiveTxCode = timesheet.transaction_code || rate?.transaction_code || "";
 
+    if (isBiometric && !["Task", "Semi", "Ad-Hoc", "Adhoc"].includes((timesheet.shift_type || "").trim())) {
+        return buildBatchExportRow(timesheet, effectiveTxCode, 0, 0, 0, timesheet.shift_type || '');
+    }
+
     if (isBiometric) {
         const biometricHours = parseFloat(timesheet.total_hours) || 0;
         const lunchDeduction =
