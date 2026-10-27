@@ -128,13 +128,17 @@ const getWeekKey = (dateStr) => {
 };
 
 const calculateRow = (timesheet, clientRates, employees) => {
+  const shiftTypeTrimmed = (timesheet.shift_type || "").trim();
+  const isValidShift = ["Task", "Semi", "Ad-Hoc", "Adhoc"].includes(shiftTypeTrimmed);
+
   const isBiometric =
-    (timesheet.shift_type !== "Task" && timesheet.total_hours != null) ||
-    (timesheet.shift_type === "Semi" &&
-      (timesheet.semi_weekly_hours || "").toString().trim() === "n/s");
+    isValidShift &&
+    ((timesheet.shift_type !== "Task" && timesheet.total_hours != null) ||
+      (timesheet.shift_type === "Semi" &&
+        (timesheet.semi_weekly_hours || "").toString().trim() === "n/s"));
   let rate = null;
 
-  if (timesheet.shift_type !== "Task") {
+  if (isValidShift && timesheet.shift_type !== "Task") {
     rate = findRate(clientRates, timesheet.client_id, timesheet.occupation);
   }
 
@@ -152,7 +156,7 @@ const calculateRow = (timesheet, clientRates, employees) => {
     totalHours = parseFloat(timesheet.units) || 0;
     ntHrs = totalHours;
     ntPay = totalHours * (parseFloat(timesheet.rate) || 0);
-  } else if (isBiometric) {
+  } else if (rate && isBiometric) {
     const isNonStandard =
       timesheet.shift_type === "Semi" &&
       (timesheet.semi_weekly_hours || "").toString().trim() === "n/s";
@@ -208,7 +212,7 @@ const calculateRow = (timesheet, clientRates, employees) => {
       ntHrs = netHours;
       ntPay = netHours * ntRate;
     }
-  } else {
+  } else if (rate && isValidShift && (timesheet.shift_type || "").trim()) {
     totalHours = calculateHours(timesheet.start_time, timesheet.end_time);
     const isAdHoc =
       timesheet.shift_type === "Ad-Hoc" || timesheet.shift_type === "Adhoc";

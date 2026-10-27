@@ -317,6 +317,10 @@ export const calculateBatchExportRow = (timesheet, clientRates) => {
         }
     }
 
+    if (!isBiometric && !["Task", "Semi", "Ad-Hoc", "Adhoc"].includes((timesheet.shift_type || "").trim())) {
+        return buildBatchExportRow(timesheet, effectiveTxCode, 0, 0, 0, timesheet.shift_type || '');
+    }
+
     const totalHours = calculateHours(timesheet.start_time, timesheet.end_time);
     let normalTime = 0;
     let overTimeHours = 0;
@@ -459,7 +463,7 @@ export const calculateTimesheetRow = (timesheet, clientRates, employees) => {
             ntHrs = totalUnits;
             ntPay = totalUnits * (parseFloat(timesheet.rate) || 0);
         }
-    } else if (isBiometric) {
+    } else if (isBiometric && ["Semi", "Ad-Hoc", "Adhoc"].includes((timesheet.shift_type || "").trim())) {
         totalHours = parseFloat(timesheet.total_hours) || 0;
         const lunchDeduction =
             timesheet.actual_lunch_hours !== null &&
@@ -480,7 +484,7 @@ export const calculateTimesheetRow = (timesheet, clientRates, employees) => {
             ntHrs = netHours;
             ntPay = netHours * ntRate;
         }
-    } else {
+    } else if (["Semi", "Ad-Hoc", "Adhoc"].includes((timesheet.shift_type || "").trim())) {
         totalHours = calculateHours(timesheet.start_time, timesheet.end_time);
         const getLunch = () =>
             timesheet.actual_lunch_hours !== null &&
@@ -601,7 +605,7 @@ export const calculateEmployeeData = (timesheets, clientRates, employees) => {
                         normalTimePay = biometricHours * (parseFloat(rate?.nt_hourly_rate) || 0);
                     }
                 }
-            } else {
+            } else if (["Semi", "Ad-Hoc", "Adhoc"].includes((timesheet.shift_type || "").trim())) {
                 const totalHours = calculateHours(timesheet.start_time, timesheet.end_time);
                 const getLunch = () =>
                     timesheet.actual_lunch_hours !== null &&

@@ -13,6 +13,12 @@ import {
 } from "lucide-react";
 import Snackbar from "@mui/material/Snackbar";
 import Alert from "@mui/material/Alert";
+import Dialog from "@mui/material/Dialog";
+import DialogTitle from "@mui/material/DialogTitle";
+import DialogContent from "@mui/material/DialogContent";
+import DialogContentText from "@mui/material/DialogContentText";
+import DialogActions from "@mui/material/DialogActions";
+import Button from "@mui/material/Button";
 import api from "../../utils/api";
 import { calculateSemiWeeklySummary } from "../businesslogic/businesslogic";
 
@@ -57,6 +63,8 @@ import { calculateSemiWeeklySummary } from "../businesslogic/businesslogic";
     const [snackbarSeverity, setSnackbarSeverity] = useState("success");
     const [coCount, setCoCount] = useState(0);
     const [loading, setLoading] = useState(false);
+    const [proceedDuplicate, setProceedDuplicate] = useState(false);
+    const [duplicatePayload, setDuplicatePayload] = useState(null);
     const modalRef = useRef(null);
 
     const [showIdleState, setShowIdleState] = useState(true);
@@ -383,8 +391,54 @@ import { calculateSemiWeeklySummary } from "../businesslogic/businesslogic";
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [isOpen, editData]);
 
+    const getEmployeeName = (coNumber) => {
+        const emp = employees.find(
+            (e) => e.co_number?.toString().trim() === String(coNumber || "").trim()
+        );
+        return emp ? emp.full_name || "" : "";
+    };
+
+    const normalizeTime = (t) => {
+        if (!t) return "";
+        const str = String(t).trim();
+        const match = str.match(/(\d{1,2}):(\d{2})/);
+        return match ? `${String(Number(match[1])).padStart(2, "0")}:${match[2]}` : str;
+    };
+
+    const findDuplicate = useCallback(
+        (payload) => {
+            const employeeName = getEmployeeName(payload.co_number);
+            return (propTimesheets || []).find((ts) => {
+                if (ts.status === "archived") return false;
+                return (
+                    String(ts.timesheet_number || "").trim() ===
+                        String(payload.timesheet_number || "").trim() &&
+                    String(ts.timesheet_date || "").split(/[T\s]/)[0] ===
+                        String(payload.timesheet_date || "").trim() &&
+                    String(ts.client_id || "").trim() ===
+                        String(payload.client_id || "").trim() &&
+                    String(ts.client_name || "").trim() ===
+                        String(payload.client_name || "").trim() &&
+                    String(ts.co_number || "").trim() ===
+                        String(payload.co_number || "").trim() &&
+                    getEmployeeName(ts.co_number) === employeeName &&
+                    String(ts.transaction_code || "").trim() ===
+                        String(payload.transaction_code || "").trim() &&
+                    String(ts.shift_type || "").trim() ===
+                        String(payload.shift_type || "").trim() &&
+                    String(ts.occupation || "").trim() ===
+                        String(payload.occupation || "").trim() &&
+                    normalizeTime(ts.start_time) === normalizeTime(payload.start_time) &&
+                    normalizeTime(ts.end_time) === normalizeTime(payload.end_time) &&
+                    Number(ts.total_hours || 0) === Number(payload.total_hours || 0)
+                );
+            });
+        },
+        [propTimesheets, getEmployeeName]
+    );
+
     const handleSubmit = async (e) => {
-        e.preventDefault();
+        if (e) e.preventDefault();
 
         if (!validateForm()) {
             setSnackbarMessage("Please fill in all required fields");
@@ -419,6 +473,17 @@ import { calculateSemiWeeklySummary } from "../businesslogic/businesslogic";
             if (!isEditMode) {
                 payload.status = 'active';
             }
+
+            if (!isEditMode && !proceedDuplicate) {
+                const duplicate = findDuplicate(payload);
+                if (duplicate) {
+                    setLoading(false);
+                    setDuplicatePayload(payload);
+                    return;
+                }
+            }
+
+            setProceedDuplicate(false);
 
             if (isEditMode && editData?.id) {
                 await api.put(`/timesheets/${editData.id}`, payload);
@@ -928,6 +993,70 @@ import { calculateSemiWeeklySummary } from "../businesslogic/businesslogic";
                     </div>
                 </div>
 
+                {duplicatePayload && (
+                    <Dialog
+                        open
+                        onClose={() => setDuplicatePayload(null)}
+                        maxWidth="sm"
+                        fullWidth
+                        PaperProps={{
+                            sx: {
+                                borderRadius: 2,
+                                borderTop: '8px solid #1742c4',
+                                boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
+                            }
+                        }}
+                    >
+                        <DialogTitle sx={{ fontWeight: 700, fontSize: '1.1rem', color: '#1e293b', pb: 1 }}>
+                            Duplicate Timesheet Detected
+                        </DialogTitle>
+                        <DialogContent>
+                            <DialogContentText sx={{ color: '#475569', fontSize: '0.95rem' }}>
+                                A timesheet with identical details already exists   . Capture it anyway?
+                                <br /><br />
+                                <strong>Timesheet No:</strong> {duplicatePayload.timesheet_number}<br />
+                                <strong>Date:</strong> {duplicatePayload.timesheet_date}<br />
+                                <strong>Client:</strong> {duplicatePayload.client_id} - {duplicatePayload.client_name}<br />
+                                <strong>Employee:</strong> {duplicatePayload.co_number} - {getEmployeeName(duplicatePayload.co_number)}
+                            </DialogContentText>
+                        </DialogContent>
+                        <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
+                            <Button
+                                onClick={() => setDuplicatePayload(null)}
+                                sx={{
+                                    color: '#475569',
+                                    border: '1px solid #cbd5e1',
+                                    borderRadius: 1,
+                                    textTransform: 'none',
+                                    fontWeight: 600,
+                                    px: 3,
+                                    '&:hover': { border: '1px solid #94a3b8', backgroundColor: '#f8fafc' },
+                                }}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                onClick={() => {
+                                    setProceedDuplicate(true);
+                                    setDuplicatePayload(null);
+                                    handleSubmit();
+                                }}
+                                disabled={loading}
+                                variant="contained"
+                                sx={{
+                                    backgroundColor: '#1742c4',
+                                    '&:hover': { backgroundColor: '#4F46E5' },
+                                    borderRadius: 1,
+                                    textTransform: 'none',
+                                    fontWeight: 600,
+                                    px: 3,
+                                }}
+                            >
+                                Proceed
+                            </Button>
+                        </DialogActions>
+                    </Dialog>
+                )}
                 <Snackbar open={snackbarOpen} autoHideDuration={3000} onClose={handleSnackbarClose} anchorOrigin={{ vertical: "bottom", horizontal: "center" }}>
                     <Alert onClose={handleSnackbarClose} severity={snackbarSeverity} variant="filled" sx={{ width: "100%", borderRadius: "12px" }}>{snackbarMessage}</Alert>
                 </Snackbar>
