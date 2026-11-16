@@ -408,6 +408,9 @@ const TimesheetList = memo(({
   const employees = payrollData?.employees || [];
   const loading = isLoading;
 
+  const isWagesClerk = user?.role === "Wages Clerk";
+  const clerkUserId = user?.id;
+
   useEffect(() => {
     if (!loading && payrollData?.timesheets) {
       onTimesheetsLoaded?.(payrollData.timesheets);
@@ -457,16 +460,24 @@ const TimesheetList = memo(({
   }, [user]);
 
   const activeData = useMemo(() => {
-    return rawTimesheets
-      .filter((ts) => ts.status !== "archived")
-      .map((ts) => calculateRow(ts, clientRates, employees));
-  }, [rawTimesheets, clientRates, employees]);
+    let data = rawTimesheets.filter((ts) => ts.status !== "archived");
+    if (isWagesClerk) {
+      data = data.filter(
+        (ts) => (ts.user_id || "").toString() === clerkUserId?.toString(),
+      );
+    }
+    return data.map((ts) => calculateRow(ts, clientRates, employees));
+  }, [rawTimesheets, clientRates, employees, isWagesClerk, clerkUserId]);
 
   const archivedData = useMemo(() => {
-    return rawTimesheets
-      .filter((ts) => ts.status === "archived")
-      .map((ts) => calculateRow(ts, clientRates, employees));
-  }, [rawTimesheets, clientRates, employees]);
+    let data = rawTimesheets.filter((ts) => ts.status === "archived");
+    if (isWagesClerk) {
+      data = data.filter(
+        (ts) => (ts.user_id || "").toString() === clerkUserId?.toString(),
+      );
+    }
+    return data.map((ts) => calculateRow(ts, clientRates, employees));
+  }, [rawTimesheets, clientRates, employees, isWagesClerk, clerkUserId]);
 
   const clerkDataMap = useMemo(() => {
     const map = {};
@@ -706,6 +717,8 @@ const TimesheetList = memo(({
       if (timesheetTab === "active" && ts.status === "archived") return false;
       if (timesheetTab === "archived" && ts.status !== "archived") return false;
       if (isClerkTab && ts.user_id?.toString() !== timesheetTab) return false;
+      if (isWagesClerk && (ts.user_id || "").toString() !== clerkUserId?.toString())
+        return false;
       if (selectedEmpNo && (ts.co_number || "").toString() !== selectedEmpNo)
         return false;
       if (
@@ -844,6 +857,8 @@ const TimesheetList = memo(({
     startDate,
     endDate,
     isClerkTab,
+    isWagesClerk,
+    clerkUserId,
   ]);
 
   const handlePageChange = (newPage) => {
