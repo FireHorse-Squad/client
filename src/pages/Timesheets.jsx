@@ -118,7 +118,13 @@ export default function Timesheets() {
             const formData = new FormData();
             formData.append('file', file);
             const res = await api.post('/timesheets/import', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-            setImportMsg({ type: 'success', text: res.data.message || `Imported ${res.data.imported} timesheets` });
+            const imported = res.data.imported || 0;
+            const errors = res.data.errors || [];
+            if (imported === 0 && errors.length > 0) {
+              setImportMsg({ type: 'error', text: `Import failed: ${errors.slice(0, 3).join('; ')}` });
+              return;
+            }
+            setImportMsg({ type: 'success', text: res.data.message || `Imported ${imported} timesheets` });
             dispatchDataChange('csv-import');
             window.location.reload();
         } catch (err) {
