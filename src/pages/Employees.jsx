@@ -1,8 +1,19 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from 'react';
 import api from '../utils/api';
 import { onDataChange, dispatchDataChange } from '../utils/dataSync';
+import { useQueryClient } from '@tanstack/react-query';
+import { useEmployees } from '../hooks/usePayroll';
 import { Plus, Edit, Trash2, X, AlertCircle, CheckSquare, Square, FileSpreadsheet } from 'lucide-react';
-import BulkDeleteModal from '../components/common/BulkDeleteModal';
+const BulkDeleteModal = lazy(() => import('../components/common/BulkDeleteModal'));
+
+const BulkDeleteLoading = () => (
+    <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-center">
+            <div className="w-12 h-12 border-4 border-[#2D328F] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-[#2D328F] font-medium">Loading delete dialog...</p>
+        </div>
+    </div>
+);
 
 const HEADER_BG = '#2D328F';
 
@@ -15,9 +26,11 @@ const COLUMNS = [
 ];
 
 export default function Employees() {
-    const [employees, setEmployees] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
+    const queryClient = useQueryClient();
+    const { data: employeesData, isLoading, error } = useEmployees();
+
+    const employees = employeesData || [];
+    const loading = isLoading;
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingEmployee, setEditingEmployee] = useState(null);
     const [formData, setFormData] = useState({ co_number: '', full_name: '', id_number: '', co_code: '' });
@@ -34,25 +47,14 @@ export default function Employees() {
     const [importMsg, setImportMsg] = useState(null);
     const csvInputRef = useRef(null);
 
-    const fetchEmployees = useCallback(async () => {
-        try {
-            setLoading(true);
-            const response = await api.get('/employees');
-            setEmployees(response.data);
-        } catch (err) {
-            setError(err.response?.data?.message || 'Failed to fetch employees');
-        } finally {
-            setLoading(false);
-        }
-    }, []);
-
     useEffect(() => {
-        fetchEmployees();
         const unsubscribe = onDataChange(() => {
-            if (document.visibilityState === 'visible') fetchEmployees();
+            if (document.visibilityState === 'visible') {
+                queryClient.invalidateQueries(['employees']);
+            }
         });
         return () => unsubscribe();
-    }, [fetchEmployees]);
+    }, [queryClient]);
 
     const resetForm = () => {
         setFormData({ co_number: '', full_name: '', id_number: '', co_code: '' });
@@ -79,7 +81,7 @@ export default function Employees() {
             } else {
                 await api.post('/employees', formData);
             }
-            await fetchEmployees();
+            await queryClient.invalidateQueries(['employees']);
             setIsModalOpen(false);
             resetForm();
         } catch (err) {
@@ -107,7 +109,7 @@ export default function Employees() {
             const res = await api.post('/employees/import', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
             setImportMsg({ type: 'success', text: res.data.message || `Imported ${res.data.imported} employees` });
             dispatchDataChange('csv-import');
-            await fetchEmployees();
+            await queryClient.invalidateQueries(['employees']);
         } catch (err) {
             setImportMsg({ type: 'error', text: err.response?.data?.message || 'CSV import failed' });
         } finally {
@@ -121,7 +123,7 @@ export default function Employees() {
         setError('');
         try {
             await api.delete(`/employees/${id}`);
-            await fetchEmployees();
+            await queryClient.invalidateQueries(['employees']);
             setDeleteConfirm(null);
         } catch (err) {
             setError(err.response?.data?.message || 'Failed to delete employee');
@@ -153,7 +155,7 @@ export default function Employees() {
         setBulkDeleting(true);
         try {
             await Promise.all(selectedIds.map((id) => api.delete(`/employees/${id}`)));
-            await fetchEmployees();
+            await queryClient.invalidateQueries(['employees']);
             setSelectedIds([]);
         } catch (err) {
             setError(err.response?.data?.message || 'Failed to delete selected employees');
@@ -371,14 +373,16 @@ export default function Employees() {
                 </div>
             )}
 
-            <BulkDeleteModal
-                open={bulkDeleteOpen}
-                onClose={() => setBulkDeleteOpen(false)}
-                onConfirm={handleBulkDeleteConfirm}
-                deleting={bulkDeleting}
-                selectedCount={selectedIds.length}
-                itemName="employees"
-            />
+            <Suspense fallback={<BulkDeleteLoading />}>
+                <BulkDeleteModal
+                    open={bulkDeleteOpen}
+                    onClose={() => setBulkDeleteOpen(false)}
+                    onConfirm={handleBulkDeleteConfirm}
+                    deleting={bulkDeleting}
+                    selectedCount={selectedIds.length}
+                    itemName="employees"
+                />
+            </Suspense>
         </div>
     );
 }

@@ -1,6 +1,6 @@
-import React, { useState, useRef, useMemo, useEffect } from 'react';
+import React, { useState, useRef, useMemo, useCallback, useEffect, lazy, Suspense } from 'react';
 import TimesheetList from "../components/_timesheets/timesheetlist";
-import TimesheetModal from "../components/_timesheets/timesheetmodal";
+const TimesheetModal = lazy(() => import("../components/_timesheets/timesheetmodal"));
 import { Upload, FileSpreadsheet, Fingerprint, Plus, Pencil, Trash2, Download, Calendar } from 'lucide-react';
 import api from '../utils/api';
 import { dispatchDataChange } from '../utils/dataSync';
@@ -12,7 +12,7 @@ import DialogContentText from '@mui/material/DialogContentText';
 import DialogActions from '@mui/material/DialogActions';
 import Button from '@mui/material/Button';
 import * as XLSX from 'xlsx';
-import ReportModal from '../components/ReportModal';
+const ReportModal = lazy(() => import('../components/ReportModal'));
 
 export default function Timesheets() {
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -65,14 +65,14 @@ export default function Timesheets() {
         dispatchDataChange('timesheet-save');
     };
 
-    const handleEdit = (row) => {
+    const handleEdit = useCallback((row) => {
         setEditingRow(row);
         setIsModalOpen(true);
-    };
+    }, []);
 
-    const handleDeleteClick = (row) => {
+    const handleDeleteClick = useCallback((row) => {
         setDeleteTarget(row);
-    };
+    }, []);
 
     const handleDeleteConfirm = async () => {
         if (!deleteTarget?.id) return;
@@ -89,7 +89,7 @@ export default function Timesheets() {
         }
     };
 
-    const handleBulkDelete = async (selectedIds) => {
+    const handleBulkDelete = useCallback(async (selectedIds) => {
         setDeleting(true);
         try {
             await Promise.all(selectedIds.map(id => api.delete(`/timesheets/${id}`)));
@@ -101,7 +101,7 @@ export default function Timesheets() {
         } finally {
             setDeleting(false);
         }
-    };
+    }, [dispatchDataChange, setRefreshKey, setDeleting, setImportMsg]);
 
     const handleModalClose = () => {
         setIsModalOpen(false);
@@ -205,6 +205,24 @@ export default function Timesheets() {
         setReportOpen(true);
     };
 
+    const ModalLoading = () => (
+        <div className="min-h-screen flex items-center justify-center bg-slate-50">
+            <div className="text-center">
+                <div className="w-12 h-12 border-4 border-[#2D328F] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                <p className="text-[#2D328F] font-medium">Loading timesheet form...</p>
+            </div>
+        </div>
+    );
+
+    const ReportLoading = () => (
+        <div className="min-h-screen flex items-center justify-center bg-slate-50">
+            <div className="text-center">
+                <div className="w-12 h-12 border-4 border-[#2D328F] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                <p className="text-[#2D328F] font-medium">Loading report builder...</p>
+            </div>
+        </div>
+    );
+
     return (
         <div className="animate-in fade-in duration-200">
             {user?.role === 'Wages Clerk' && (
@@ -293,13 +311,15 @@ export default function Timesheets() {
                     onTimesheetsLoaded={setAllTimesheets}
                 />
             </div>
-            <TimesheetModal
-                isOpen={isModalOpen}
-                onClose={handleModalClose}
-                onSave={handleSave}
-                editData={editingRow}
-                timesheets={allTimesheets}
-            />
+            <Suspense fallback={<ModalLoading />}>
+                <TimesheetModal
+                    isOpen={isModalOpen}
+                    onClose={handleModalClose}
+                    onSave={handleSave}
+                    editData={editingRow}
+                    timesheets={allTimesheets}
+                />
+            </Suspense>
 
             <Dialog
                 open={!!deleteTarget}
@@ -360,11 +380,13 @@ export default function Timesheets() {
                     </Button>
                 </DialogActions>
             </Dialog>
-            <ReportModal
-                isOpen={reportOpen}
-                onClose={() => setReportOpen(false)}
-                timesheets={reportData}
-            />
+            <Suspense fallback={<ReportLoading />}>
+                <ReportModal
+                    isOpen={reportOpen}
+                    onClose={() => setReportOpen(false)}
+                    timesheets={reportData}
+                />
+            </Suspense>
         </div>
     );
 }

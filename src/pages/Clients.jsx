@@ -177,7 +177,7 @@ export default function Clients() {
 
         try {
             const numericFields = ['nt_hourly_rate', 'ot_1_5_rate', 'ot_2_0_rate', 'hrs_pd', 'deduct_lunch_hour',
-                'sub_total_a', 'uif', 'sdl', 'coida', 'medicals', 'criminal_checks', 'ppe',
+                'sub_total_a', 'sub_total_b', 'uif', 'sdl', 'coida', 'medicals', 'criminal_checks', 'ppe',
                 'preservation_fund', 'service_fee', 'admin_costs', 'payroll_financing_fee',
                 'supervision_fee', 'nt_invoice_rate', 'ot_1_5_invoice_rate', 'ot_2_0_invoice_rate',
                 'night_shift_allowance', 'substance_allowance', 'hazardous_allowance', 'nt_per_day',

@@ -20,6 +20,7 @@ import DialogContentText from "@mui/material/DialogContentText";
 import DialogActions from "@mui/material/DialogActions";
 import Button from "@mui/material/Button";
 import api from "../../utils/api";
+import { useAuth } from "../../context/AuthContext";
 import { calculateSemiWeeklySummary } from "../businesslogic/businesslogic";
 
     const getAdjustedDate = (date) => {
@@ -56,6 +57,8 @@ import { calculateSemiWeeklySummary } from "../businesslogic/businesslogic";
     const TimesheetModal = ({ isOpen, onClose, onSave, editData, onDelete, timesheets: propTimesheets }) => {
     const isEditMode = !!editData;
     const [formData, setFormData] = useState(initialFormData);
+    const { user } = useAuth();
+    const [useTotalHours, setUseTotalHours] = useState(false);
     const [employees, setEmployees] = useState([]);
     const [clientRates, setClientRates] = useState([]);
     const [snackbarOpen, setSnackbarOpen] = useState(false);
@@ -167,6 +170,23 @@ import { calculateSemiWeeklySummary } from "../businesslogic/businesslogic";
             setFormData({ ...formData, [name]: e.target.checked });
         } else if (name === "semi_weekly_hours") {
             setFormData({ ...formData, [name]: value });
+        } else if (name === "total_hours") {
+            setFormData((prev) => {
+                const next = { ...prev, total_hours: value };
+                if (value) {
+                    next.start_time = "";
+                    next.end_time = "";
+                }
+                return next;
+            });
+        } else if (name === "start_time" || name === "end_time") {
+            setFormData((prev) => {
+                const next = { ...prev, [name]: value };
+                if (value) {
+                    next.total_hours = "";
+                }
+                return next;
+            });
         } else {
             setFormData({ ...formData, [name]: value });
         }
@@ -177,6 +197,15 @@ import { calculateSemiWeeklySummary } from "../businesslogic/businesslogic";
                 delete next[name];
                 return next;
             });
+        }
+    };
+
+    const toggleTotalHoursMode = (checked) => {
+        setUseTotalHours(checked);
+        if (checked) {
+            setFormData((prev) => ({ ...prev, start_time: "", end_time: "" }));
+        } else {
+            setFormData((prev) => ({ ...prev, total_hours: "" }));
         }
     };
 
@@ -325,6 +354,7 @@ import { calculateSemiWeeklySummary } from "../businesslogic/businesslogic";
         } else {
             setFormData(initialFormData);
             setCoCount(0);
+            setUseTotalHours(false);
             setShowIdleState(true);
             setShowErrorState(false);
             setShowEmployeeBadge(false);
@@ -564,6 +594,7 @@ import { calculateSemiWeeklySummary } from "../businesslogic/businesslogic";
             populateForm(editData);
         } else {
             setFormData({ ...initialFormData });
+            setUseTotalHours(false);
             setCoCount(0);
             setShowIdleState(true);
             setShowErrorState(false);
@@ -585,6 +616,7 @@ import { calculateSemiWeeklySummary } from "../businesslogic/businesslogic";
 
     const handleClose = () => {
         setFormData({ ...initialFormData });
+        setUseTotalHours(false);
         setCoCount(0);
         setShowIdleState(true);
         setShowErrorState(false);
@@ -674,6 +706,13 @@ import { calculateSemiWeeklySummary } from "../businesslogic/businesslogic";
 
         return { totalHours, netHours, normalTime, overTime, lunch, accumulatedNT, accumulatedOT, isNightShift };
     };
+
+    const isCapeTownAdmin = () => user?.role === 'Cape Town Admin';
+
+    const totalHoursDisabled = !useTotalHours;
+    const startEndDisabled = useTotalHours;
+
+    const disabledInputCls = (disabled) => `w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 outline-none ${disabled ? "bg-slate-100 text-slate-400 border-slate-300" : "border-blue-200"}`;
 
     if (!isOpen) return null;
 
@@ -822,7 +861,7 @@ import { calculateSemiWeeklySummary } from "../businesslogic/businesslogic";
                                                         value={hours}
                                                         checked={formData.semi_weekly_hours === hours}
                                                         onChange={(e) => setFormData({ ...formData, semi_weekly_hours: e.target.value })}
-                                                        className="h-4 w-4 text-[#1742c4] border-slate-300 focus:ring-[#1742c4]"
+                                            className="h-4 w-4 text-[#1742c4] border-[#1742c4] focus:ring-[#1742c4]"
                                                     />
                                                     <span className="text-xs text-slate-700">{hours} hrs</span>
                                                 </label>
@@ -945,12 +984,49 @@ import { calculateSemiWeeklySummary } from "../businesslogic/businesslogic";
                             </div>
                             <div className="flex flex-col">
                                 <label className="block text-[10px] font-bold text-blue-600 uppercase mb-1">Start Time</label>
-                                <input type="time" name="start_time" value={formData.start_time} onChange={handleChange} className="w-full p-2 border border-blue-200 rounded-md focus:ring-2 focus:ring-blue-500 outline-none" />
+                                <input
+                                    type="time"
+                                    name="start_time"
+                                    value={formData.start_time}
+                                    onChange={handleChange}
+                                    disabled={startEndDisabled}
+                                    className={disabledInputCls(startEndDisabled)}
+                                />
                             </div>
                             <div className="flex flex-col">
                                 <label className="block text-[10px] font-bold text-blue-600 uppercase mb-1">End Time</label>
-                                <input type="time" name="end_time" value={formData.end_time} onChange={handleChange} className="w-full p-2 border border-blue-200 rounded-md focus:ring-2 focus:ring-blue-500 outline-none" />
+                                <input
+                                    type="time"
+                                    name="end_time"
+                                    value={formData.end_time}
+                                    onChange={handleChange}
+                                    disabled={startEndDisabled}
+                                    className={disabledInputCls(startEndDisabled)}
+                                />
                             </div>
+                            {isCapeTownAdmin() && (
+                                <div className="flex flex-col">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <input
+                                            type="checkbox"
+                                            checked={useTotalHours}
+                                            onChange={(e) => toggleTotalHoursMode(e.target.checked)}
+                                            className="appearance-none h-4 w-4 rounded border-2 border-blue-100 bg-white text-[#1742c4] focus:ring-[#1742c4] checked:bg-[#4F46E5] checked:border-[#4F46E5]"
+                                        />
+                                        <label className="block text-[10px] font-bold text-blue-600 uppercase mb-0 cursor-pointer">Total Hours</label>
+                                    </div>
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        name="total_hours"
+                                        value={formData.total_hours}
+                                        onChange={handleChange}
+                                        placeholder="e.g. 8.5"
+                                        disabled={totalHoursDisabled}
+                                        className={disabledInputCls(totalHoursDisabled)}
+                                    />
+                                </div>
+                            )}
                         </div>
 
                         {formData.shift_type === "Biometric" && (

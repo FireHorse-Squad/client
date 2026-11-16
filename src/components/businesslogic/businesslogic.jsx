@@ -53,7 +53,9 @@ const getWeekKey = (dateStr) => {
 };
 
 const getWeekStart = (dateStr) => {
+    if (!dateStr) return "";
     const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return "";
     const day = d.getDay();
     const diff = day === 0 ? 6 : day - 1;
     d.setDate(d.getDate() - diff);

@@ -1,7 +1,9 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, memo } from "react";
 import api from "../../utils/api";
 import { useAuth } from "../../context/AuthContext";
 import { onDataChange } from "../../utils/dataSync";
+import { useQueryClient } from "@tanstack/react-query";
+import { usePayrollData } from "../../hooks/usePayroll";
 import {
   Pencil,
   Trash2,
@@ -390,20 +392,36 @@ const COLUMNS = [
   { id: "actions", label: "ACTIONS", minWidth: 90, align: "center" },
 ];
 
-export default function TimesheetList({
-  refreshKey,
+const TimesheetList = memo(({ 
   onEdit,
   onDelete,
   onBulkDelete,
   onExportData,
   onTimesheetsLoaded,
-}) {
+}) => {
   const { user } = useAuth();
-  const [rawTimesheets, setRawTimesheets] = useState([]);
-  const [clientRates, setClientRates] = useState([]);
-  const [employees, setEmployees] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const queryClient = useQueryClient();
+  const { data: payrollData, isLoading, error } = usePayrollData();
+
+  const rawTimesheets = payrollData?.timesheets || [];
+  const clientRates = payrollData?.clientRates || [];
+  const employees = payrollData?.employees || [];
+  const loading = isLoading;
+
+  useEffect(() => {
+    if (!loading && payrollData?.timesheets) {
+      onTimesheetsLoaded?.(payrollData.timesheets);
+    }
+  }, [payrollData?.timesheets, onTimesheetsLoaded, loading]);
+
+  useEffect(() => {
+    const unsubscribe = onDataChange(() => {
+      queryClient.invalidateQueries(['timesheets']);
+      queryClient.invalidateQueries(['clientRates']);
+      queryClient.invalidateQueries(['employees']);
+    });
+    return () => unsubscribe();
+  }, [queryClient]);
 
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -420,46 +438,11 @@ export default function TimesheetList({
   const [selectedClientId, setSelectedClientId] = useState("");
   const [selectedClientName, setSelectedClientName] = useState("");
   const [selectedUnknownsOnly, setSelectedUnknownsOnly] = useState(false);
+  const [showDuplicatesOnly, setShowDuplicatesOnly] = useState(false);
   const [timesheetTab, setTimesheetTab] = useState("active");
   const [clerks, setClerks] = useState([]);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-
-  const fetchData = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const [tsRes, crRes, empRes] = await Promise.all([
-        api.get("/timesheets"),
-        api.get("/clientrates"),
-        api.get("/employees"),
-      ]);
-      setRawTimesheets(tsRes.data);
-      setClientRates(crRes.data);
-      setEmployees(empRes.data);
-      onTimesheetsLoaded?.(tsRes.data);
-    } catch (err) {
-      setError(
-        err.response?.data?.message ||
-          err.message ||
-          "Failed to fetch timesheets",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, 86400000);
-    const unsubscribe = onDataChange(() => {
-      fetchData();
-    });
-    return () => {
-      clearInterval(interval);
-      unsubscribe();
-    };
-  }, [fetchData, refreshKey]);
 
   useEffect(() => {
     if (user?.role === "Account Manager") {
@@ -502,6 +485,69 @@ export default function TimesheetList({
     if (timesheetTab === "archived") return archivedData;
     return clerkDataMap[timesheetTab] || [];
   }, [timesheetTab, activeData, archivedData, clerkDataMap]);
+
+  const normalizeTimeList = useCallback((t) => {
+    if (!t) return "";
+    const str = String(t).trim();
+    const match = str.match(/(\d{1,2}):(\d{2})/);
+    return match ? `${String(Number(match[1])).padStart(2, "0")}:${match[2]}` : str;
+  }, []);
+
+  const getEmpNameList = useCallback((coNumber) => {
+    const emp = employees.find(
+      (e) => e.co_number?.toString().trim() === String(coNumber || "").trim()
+    );
+    return emp ? emp.full_name || "" : "";
+  }, [employees]);
+
+  const dupKeyFromRaw = useCallback(
+    (ts) => {
+      const empName = getEmpNameList(ts.co_number);
+      return [
+        String(ts.timesheet_number || "").trim(),
+        String(ts.timesheet_date || "").split(/[T\s]/)[0],
+        String(ts.client_id || "").trim(),
+        String(ts.client_name || "").trim(),
+        String(ts.co_number || "").trim(),
+        String(empName || "").trim(),
+        String(ts.transaction_code || "").trim(),
+        String(ts.shift_type || "").trim(),
+        String(ts.occupation || "").trim(),
+        normalizeTimeList(ts.start_time),
+        normalizeTimeList(ts.end_time),
+        String(Number(ts.total_hours || 0)),
+      ].join("||");
+    },
+    [normalizeTimeList, getEmpNameList]
+  );
+
+  const duplicateIdSet = useMemo(() => {
+    const groups = {};
+    (rawTimesheets || []).forEach((ts) => {
+      if (ts.status === "archived") return;
+      const key = dupKeyFromRaw(ts);
+      const parts = key.split("||");
+      if (!parts.some((v) => v.trim())) return;
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(ts.id);
+    });
+    const set = new Set();
+    Object.values(groups).forEach((arr) => {
+      if (arr.length > 1) arr.forEach((id) => set.add(id));
+    });
+    return set;
+  }, [rawTimesheets, dupKeyFromRaw]);
+
+  const dataWithDupes = useMemo(
+    () =>
+      currentData.map((r) => ({
+        ...r,
+        isDuplicate: duplicateIdSet.has(r.id),
+      })),
+    [currentData, duplicateIdSet],
+  );
+
+  const duplicateCount = dataWithDupes.filter((r) => r.isDuplicate).length;
 
   const tsNumberOptions = useMemo(() => {
     const unique = [
@@ -558,10 +604,10 @@ export default function TimesheetList({
 
   const filteredData = useMemo(() => {
     const byTsNo = selectedTsNo
-      ? currentData.filter(
+      ? dataWithDupes.filter(
           (r) => (r.timesheetNo || "").toString() === selectedTsNo,
         )
-      : currentData;
+      : dataWithDupes;
     const byEmpNo = selectedEmpNo
       ? byTsNo.filter((r) => (r.empNo || "").toString() === selectedEmpNo)
       : byTsNo;
@@ -592,14 +638,18 @@ export default function TimesheetList({
           })
         : unknownsOnly;
 
-    const groupCounts = byDateRange.reduce((acc, r) => {
+    const dupesOnly = showDuplicatesOnly
+      ? byDateRange.filter((r) => r.isDuplicate)
+      : byDateRange;
+
+    const groupCounts = dupesOnly.reduce((acc, r) => {
       const key = r.clientId;
       if (!acc[key]) acc[key] = new Set();
       acc[key].add(r.empNo);
       return acc;
     }, {});
 
-    return byDateRange.map((r) => {
+    return dupesOnly.map((r) => {
       const empSet = groupCounts[r.clientId];
       return {
         ...r,
@@ -607,7 +657,7 @@ export default function TimesheetList({
       };
     });
   }, [
-    currentData,
+    dataWithDupes,
     selectedTsNo,
     selectedEmpNo,
     selectedClientId,
@@ -615,12 +665,11 @@ export default function TimesheetList({
     selectedUnknownsOnly,
     startDate,
     endDate,
+    showDuplicatesOnly,
   ]);
 
   useEffect(() => {
-    if (onExportData) {
-      onExportData(filteredData);
-    }
+    onExportData?.(filteredData);
   }, [filteredData, onExportData]);
 
   const paginatedData = useMemo(() => {
@@ -958,9 +1007,9 @@ export default function TimesheetList({
   if (error) {
     return (
       <div className="text-center py-8">
-        <p className="text-red-500">Error: {error}</p>
+        <p className="text-red-500">Error: {error?.message || String(error)}</p>
         <button
-          onClick={fetchData}
+          onClick={() => queryClient.invalidateQueries(['timesheets'])}
           className="mt-4 px-4 py-2 bg-[#1742c4] text-white rounded-lg"
         >
           Retry
@@ -1050,6 +1099,11 @@ export default function TimesheetList({
                   ? "archived"
                   : "captured"}{" "}
               timesheet entries
+              {duplicateCount > 0 && (
+                <span className="ml-2 text-red-700 font-bold">
+                  ({duplicateCount} duplicates)
+                </span>
+              )}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3 pb-4">
@@ -1123,20 +1177,34 @@ export default function TimesheetList({
                 </select>
               </div>
             ))}
-            <div className="flex items-center gap-2">
-              <label className="text-xs text-slate-500 font-medium whitespace-nowrap">
-                Unknown Employees:
-              </label>
-              <input
-                type="checkbox"
-                checked={selectedUnknownsOnly}
-                onChange={(e) => {
-                  setSelectedUnknownsOnly(e.target.checked);
-                  setPage(0);
-                }}
-                className="w-4 h-4 text-[#1742c4] border-slate-300 rounded focus:ring-[#1742c4]"
-              />
-            </div>
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-slate-500 font-medium whitespace-nowrap">
+                  Unknown Employees:
+                </label>
+                <input
+                  type="checkbox"
+                  checked={selectedUnknownsOnly}
+                  onChange={(e) => {
+                    setSelectedUnknownsOnly(e.target.checked);
+                    setPage(0);
+                  }}
+                  className="w-4 h-4 text-[#1742c4] border-slate-300 rounded focus:ring-[#1742c4]"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-slate-500 font-medium whitespace-nowrap">
+                  Duplicates:
+                </label>
+                <input
+                  type="checkbox"
+                  checked={showDuplicatesOnly}
+                  onChange={(e) => {
+                    setShowDuplicatesOnly(e.target.checked);
+                    setPage(0);
+                  }}
+                  className="w-4 h-4 text-[#1742c4] border-slate-300 rounded focus:ring-[#1742c4]"
+                />
+              </div>
             <div className="flex items-center gap-2">
               <label className="text-xs text-slate-500 font-medium whitespace-nowrap">
                 Emp No:
@@ -1279,9 +1347,11 @@ export default function TimesheetList({
                 const isSelected = selectedIds.includes(row.id);
                 const rowClass = isSelected
                   ? "bg-indigo-100 hover:bg-indigo-200 transition-colors"
-                  : isSmokeWhite
-                    ? "bg-[#F5F7FA] hover:bg-slate-200/80 transition-colors"
-                    : "bg-white hover:bg-slate-100 transition-colors";
+                  : row.isDuplicate
+                    ? "bg-red-50 hover:bg-red-100 transition-colors border-l-4 border-red-500"
+                    : isSmokeWhite
+                      ? "bg-[#F5F7FA] hover:bg-slate-200/80 transition-colors"
+                      : "bg-white hover:bg-slate-100 transition-colors";
 
                 return (
                   <tr key={row.id} className={rowClass}>
@@ -1396,6 +1466,13 @@ export default function TimesheetList({
                             )
                           ) : column.id === "capturedAt" ? (
                             formatCapturedAt(row.capturedAtRaw)
+                          ) : column.id === "timesheetNo" && row.isDuplicate ? (
+                            <span className="flex items-center gap-2">
+                              {cellVal}
+                              <span className="px-1.5 py-0.5 bg-red-100 text-red-800 text-[10px] font-bold rounded">
+                                DUPLICATE
+                              </span>
+                            </span>
                           ) : (
                             cellVal
                           )}
@@ -1688,4 +1765,5 @@ export default function TimesheetList({
       </Snackbar>
     </div>
   );
-}
+});
+export default TimesheetList;
