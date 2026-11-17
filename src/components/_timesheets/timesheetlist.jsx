@@ -909,6 +909,12 @@ const TimesheetList = memo(({
     setArchiveOpen(true);
   };
 
+  const fetchData = async () => {
+    await queryClient.invalidateQueries(['timesheets']);
+    await queryClient.invalidateQueries(['clientRates']);
+    await queryClient.invalidateQueries(['employees']);
+  };
+
   const handleArchiveConfirm = async () => {
     if (selectedIds.length === 0) return;
     setArchiving(true);

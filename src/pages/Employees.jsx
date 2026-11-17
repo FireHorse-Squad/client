@@ -35,6 +35,7 @@ export default function Employees() {
     const [editingEmployee, setEditingEmployee] = useState(null);
     const [formData, setFormData] = useState({ co_number: '', full_name: '', id_number: '', co_code: '' });
     const [submitting, setSubmitting] = useState(false);
+    const [, setFormError] = useState(null);
     const [deleteConfirm, setDeleteConfirm] = useState(null);
     const [selectedIds, setSelectedIds] = useState([]);
     const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
@@ -74,7 +75,7 @@ export default function Employees() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setSubmitting(true);
-        setError('');
+        setFormError('');
         try {
             if (editingEmployee) {
                 await api.put(`/employees/${editingEmployee.id}`, formData);
@@ -85,7 +86,7 @@ export default function Employees() {
             setIsModalOpen(false);
             resetForm();
         } catch (err) {
-            setError(err.response?.data?.message || 'Failed to save employee');
+            setFormError(err.response?.data?.message || 'Failed to save employee');
         } finally {
             setSubmitting(false);
         }
@@ -120,13 +121,13 @@ export default function Employees() {
 
     const handleDelete = async (id) => {
         setSubmitting(true);
-        setError('');
+        setFormError('');
         try {
             await api.delete(`/employees/${id}`);
             await queryClient.invalidateQueries(['employees']);
             setDeleteConfirm(null);
         } catch (err) {
-            setError(err.response?.data?.message || 'Failed to delete employee');
+            setFormError(err.response?.data?.message || 'Failed to delete employee');
         } finally {
             setSubmitting(false);
         }
@@ -158,7 +159,7 @@ export default function Employees() {
             await queryClient.invalidateQueries(['employees']);
             setSelectedIds([]);
         } catch (err) {
-            setError(err.response?.data?.message || 'Failed to delete selected employees');
+            setFormError(err.response?.data?.message || 'Failed to delete selected employees');
         } finally {
             setBulkDeleting(false);
             setBulkDeleteOpen(false);
@@ -237,7 +238,7 @@ export default function Employees() {
                 </div>
             </div>
 
-            {error && <div className="p-4 bg-red-50 border border-red-200 text-red-600 rounded-lg">{error}</div>}
+            {error && <div className="p-4 bg-red-50 border border-red-200 text-red-600 rounded-lg">{error.message || 'An error occurred'}</div>}
             {importMsg && (
                 <div className={`p-4 rounded-lg text-xs ${importMsg.type === 'success' ? 'bg-green-50 border border-green-200 text-green-600' : 'bg-red-50 border border-red-200 text-red-600'}`}>
                     {importMsg.text}
@@ -294,7 +295,7 @@ export default function Employees() {
                                             {COLUMNS.map((column, index) => {
                                                 if (column.isCheckbox) {
                                                     return (
-                                                        <td key={column.key} style={{ width: `${column.minWidth}px` }} className="px-2 py-3 text-xs border-r border-slate-200/60 text-center">
+                                                        <td key={column.id} style={{ width: `${column.minWidth}px` }} className="px-2 py-3 text-xs border-r border-slate-200/60 text-center">
                                                             <button
                                                                 onClick={() => handleSelectRow(row.id)}
                                                                 className={`transition ${selectedIds.includes(row.id) ? "text-[#1742c4]" : "text-slate-300 hover:text-slate-400"}`}
